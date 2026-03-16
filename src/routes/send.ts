@@ -30,6 +30,8 @@ export async function handleSend(
         success: false,
         error: result.error || 'Failed to send email',
         errorCode: 'PROVIDER_ERROR',
+        errorType: result.errorType,
+        shouldRetry: result.shouldRetry,
       };
       
       return Response.json(response, { status: 500 });

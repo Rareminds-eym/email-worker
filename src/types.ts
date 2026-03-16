@@ -76,6 +76,8 @@ export interface SendEmailResponse {
   timestamp?: string;
   error?: string;
   errorCode?: string;
+  errorType?: string;
+  shouldRetry?: boolean;
 }
 
 export interface HealthResponse {

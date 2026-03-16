@@ -7,9 +7,10 @@
  * share the same key.  If per-caller isolation is ever needed, introduce
  * a key-to-tenant map here rather than in the router layer.
  *
- * Supported header formats:
- *   - X-API-Key: <key>            (preferred — explicit, no prefix to strip)
- *   - Authorization: Bearer <key> (accepted for clients that follow RFC 6750)
+ * Supported header formats (checked in priority order):
+ *   1. X-Internal-Api-Key: <key>   (preferred — signals internal service caller)
+ *   2. X-API-Key: <key>            (accepted for backward compatibility)
+ *   3. Authorization: Bearer <key> (accepted for clients that follow RFC 6750)
  *
  * Security notes:
  *   - Two distinct error messages are returned intentionally:
@@ -29,12 +30,15 @@ import { AuthenticationError } from '../types';
 /**
  * Authenticates an inbound request by checking for a valid API key.
  *
- * Reads the key from either:
- *   1. `X-API-Key` header  (checked first)
- *   2. `Authorization: Bearer <token>` header  (fallback)
+ * Reads the key from (in priority order):
+ *   1. `X-Internal-Api-Key` header  (preferred for internal service callers)
+ *   2. `X-API-Key` header           (backward-compatible fallback)
+ *   3. `Authorization: Bearer <token>` header  (RFC 6750 fallback)
+ *
+ * All three headers are validated against the same secret (`env.API_KEY`).
  *
  * Throws `AuthenticationError` (HTTP 401) when:
- *   - Neither header is present or both are empty
+ *   - No auth header is present or all are empty
  *   - The extracted key does not match `env.API_KEY`
  *
  * @param request - The incoming Cloudflare Workers Request object
@@ -42,17 +46,18 @@ import { AuthenticationError } from '../types';
  * @throws {AuthenticationError} on missing or invalid credentials
  */
 export function authenticateRequest(request: Request, env: Env): void {
-  // Prefer X-API-Key; fall back to stripping the "Bearer " prefix from
-  // the Authorization header.  `replace` only removes the first occurrence
-  // and is case-sensitive — "bearer" (lowercase) will NOT be stripped and
-  // will fail auth, which is intentional per RFC 6750 (case-sensitive scheme).
+  // Priority: X-Internal-Api-Key → X-API-Key → Authorization: Bearer.
+  // `replace` on the Authorization header is case-sensitive — "bearer"
+  // (lowercase) will NOT be stripped, causing auth to fail intentionally
+  // per RFC 6750 (case-sensitive scheme name).
   const apiKey =
+    request.headers.get('X-Internal-Api-Key') ||
     request.headers.get('X-API-Key') ||
     request.headers.get('Authorization')?.replace('Bearer ', '');
 
   if (!apiKey) {
     throw new AuthenticationError(
-      'Missing API key. Provide X-API-Key header or Authorization: Bearer token'
+      'Missing API key. Provide X-Internal-Api-Key header, X-API-Key header, or Authorization: Bearer token'
     );
   }
 

@@ -38,6 +38,7 @@ router.get('/', () => {
       'POST /send': 'Send email with HTML content',
       'GET /health': 'Health check',
     },
+    authentication: 'X-Internal-Api-Key header (preferred), X-API-Key header, or Authorization: Bearer token',
     documentation: 'https://docs.example.com/email-api',
   });
 });
