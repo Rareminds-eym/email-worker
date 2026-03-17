@@ -85,15 +85,29 @@ export class SESProvider extends BaseProvider {
     return true;
   }
 
+  /**
+   * Sanitize header values to prevent CRLF injection attacks.
+   * Removes CR (\r) and LF (\n) characters that could be used to inject additional headers.
+   */
+  private sanitizeHeader(value: string): string {
+    return value.replace(/[\r\n]/g, '');
+  }
+
   private buildRawEmail(message: EmailMessage): string {
     const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
     const date = new Date().toUTCString();
     
+    // Sanitize all user-controlled header values
+    const fromName = this.sanitizeHeader(message.from.name);
+    const fromEmail = this.sanitizeHeader(message.from.email);
+    const subject = this.sanitizeHeader(message.subject);
+    const toAddresses = message.to.map(addr => this.sanitizeHeader(addr));
+    
     // Build headers
     const headers: string[] = [
-      `From: ${message.from.name} <${message.from.email}>`,
-      `To: ${message.to.join(', ')}`,
-      `Subject: ${message.subject}`,
+      `From: ${fromName} <${fromEmail}>`,
+      `To: ${toAddresses.join(', ')}`,
+      `Subject: ${subject}`,
       `Date: ${date}`,
       `MIME-Version: 1.0`,
       `Content-Type: multipart/alternative; boundary="${boundary}"`,
@@ -101,16 +115,17 @@ export class SESProvider extends BaseProvider {
     
     // Add Message-ID if present
     if (message.messageId) {
-      headers.push(`Message-ID: ${message.messageId}`);
+      headers.push(`Message-ID: ${this.sanitizeHeader(message.messageId)}`);
     }
     
     // Add optional headers
     if (message.replyTo) {
-      headers.push(`Reply-To: ${message.replyTo}`);
+      headers.push(`Reply-To: ${this.sanitizeHeader(message.replyTo)}`);
     }
     
     if (message.cc && message.cc.length > 0) {
-      headers.push(`Cc: ${message.cc.join(', ')}`);
+      const ccAddresses = message.cc.map(addr => this.sanitizeHeader(addr));
+      headers.push(`Cc: ${ccAddresses.join(', ')}`);
     }
     
     // Build body parts
