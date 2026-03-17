@@ -84,6 +84,11 @@ export interface HealthResponse {
   status: 'healthy' | 'degraded' | 'unhealthy';
   timestamp: string;
   version: string;
+  checks: {
+    aws: { status: 'ok' | 'error'; message?: string };
+    kv: { status: 'ok' | 'error'; message?: string };
+    rateLimit: { status: 'ok' | 'error'; message?: string };
+  };
 }
 
 // ==================== INTERNAL TYPES ====================
@@ -102,6 +107,7 @@ export interface EmailMessage {
   bcc?: string[];
   attachments?: EmailAttachment[];
   metadata?: Record<string, any>;
+  messageId?: string;
 }
 
 export interface ProviderResponse {

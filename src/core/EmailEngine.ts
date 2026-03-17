@@ -8,28 +8,17 @@ import { RETRY } from '../constants';
 
 export class EmailEngine {
   private provider: SESProvider;
-  private retryTestMode: boolean = false;
-  private retryTestSucceedOnAttempt: number = 2; // Succeed on 2nd attempt (0-indexed: attempt 1)
-  
+
   constructor(private config: EmailConfig) {
     this.provider = new SESProvider(config);
   }
-  
-  /**
-   * Enable retry test mode - simulates failures until specified attempt
-   * @param succeedOnAttempt - Which attempt should succeed (1-based: 1=first, 2=second, 3=third/last)
-   */
-  enableRetryTestMode(succeedOnAttempt: number = 2) {
-    this.retryTestMode = true;
-    this.retryTestSucceedOnAttempt = succeedOnAttempt;
-  }
-  
-  disableRetryTestMode() {
-    this.retryTestMode = false;
-  }
-  
+
   async send(request: SendEmailRequest): Promise<ProviderResponse> {
     const message = this.buildMessage(request);
+    
+    // Generate globally unique Message-ID for this email
+    message.messageId = `<${crypto.randomUUID()}@email.rareminds.in>`;
+    
     let lastResponse: ProviderResponse | undefined;
 
     for (let attempt = 0; attempt < RETRY.MAX_ATTEMPTS; attempt++) {
@@ -40,11 +29,13 @@ export class EmailEngine {
       }
 
       if (attempt < RETRY.MAX_ATTEMPTS - 1) {
-        const delay = Math.min(
+        const baseDelay = Math.min(
           RETRY.INITIAL_DELAY_MS * Math.pow(RETRY.BACKOFF_MULTIPLIER, attempt),
           RETRY.MAX_DELAY_MS
         );
-        await new Promise(resolve => setTimeout(resolve, delay));
+        const jitter = baseDelay * 0.25 * (Math.random() * 2 - 1);
+        const jitteredDelay = Math.max(0, baseDelay + jitter);
+        await new Promise(resolve => setTimeout(resolve, jitteredDelay));
       }
     }
 
