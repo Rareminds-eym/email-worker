@@ -45,6 +45,7 @@ export async function handleSend(
     const response: SendEmailResponse = {
       success: true,
       messageId: result.messageId,
+      customMessageId: result.customMessageId,
       recipient: validatedRequest.to,
       timestamp: new Date().toISOString(),
     };

@@ -72,6 +72,7 @@ export interface EmailAttachment {
 export interface SendEmailResponse {
   success: boolean;
   messageId?: string;
+  customMessageId?: string;
   recipient?: string | string[];
   timestamp?: string;
   error?: string;
@@ -113,6 +114,7 @@ export interface EmailMessage {
 export interface ProviderResponse {
   success: boolean;
   messageId?: string;
+  customMessageId?: string;
   error?: string;
   errorType?: 'permanent' | 'temporary' | 'unknown';
   shouldRetry?: boolean;

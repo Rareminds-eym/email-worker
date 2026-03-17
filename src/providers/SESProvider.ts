@@ -49,7 +49,7 @@ export class SESProvider extends BaseProvider {
             CcAddresses: message.cc || [],
             BccAddresses: message.bcc || [],
           },
-          FromEmailAddress: `${message.from.name} <${message.from.email}>`,
+          FromEmailAddress: message.from.email,
           Content: {
             Raw: {
               Data: base64,
@@ -85,22 +85,40 @@ export class SESProvider extends BaseProvider {
     return true;
   }
 
-  /**
-   * Sanitize header values to prevent CRLF injection attacks.
-   * Removes CR (\r) and LF (\n) characters that could be used to inject additional headers.
-   */
   private sanitizeHeader(value: string): string {
     return value.replace(/[\r\n]/g, '');
+  }
+
+  private encodeRFC2047(value: string): string {
+    const sanitized = this.sanitizeHeader(value);
+    if (!/[^\x20-\x7E]/.test(sanitized)) {
+      return sanitized;
+    }
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(sanitized);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return `=?UTF-8?B?${btoa(binary)}?=`;
+  }
+
+  private formatDisplayName(name: string): string {
+    const encoded = this.encodeRFC2047(name);
+    if (encoded.startsWith('=?')) {
+      return encoded;
+    }
+    const escaped = encoded.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return `"${escaped}"`;
   }
 
   private buildRawEmail(message: EmailMessage): string {
     const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
     const date = new Date().toUTCString();
     
-    // Sanitize all user-controlled header values
-    const fromName = this.sanitizeHeader(message.from.name);
+    const fromName = this.formatDisplayName(message.from.name);
     const fromEmail = this.sanitizeHeader(message.from.email);
-    const subject = this.sanitizeHeader(message.subject);
+    const subject = this.encodeRFC2047(message.subject);
     const toAddresses = message.to.map(addr => this.sanitizeHeader(addr));
     
     // Build headers
@@ -120,7 +138,7 @@ export class SESProvider extends BaseProvider {
     
     // Add optional headers
     if (message.replyTo) {
-      headers.push(`Reply-To: ${this.sanitizeHeader(message.replyTo)}`);
+      headers.push(`Reply-To: ${this.encodeRFC2047(message.replyTo)}`);
     }
     
     if (message.cc && message.cc.length > 0) {

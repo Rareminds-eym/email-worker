@@ -23,6 +23,7 @@ export class EmailEngine {
 
     for (let attempt = 0; attempt < RETRY.MAX_ATTEMPTS; attempt++) {
       lastResponse = await this.provider.send(message);
+      lastResponse.customMessageId = message.messageId;
 
       if (lastResponse.success || !lastResponse.shouldRetry) {
         return lastResponse;
