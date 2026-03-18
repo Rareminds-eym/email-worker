@@ -3,26 +3,33 @@ main = "src/index.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# KV Namespaces for hourly/daily rate limiting (soft limits)
+# ============================================================================
+# ROOT (local `wrangler dev` only — not deployed)
+# ============================================================================
+# Bindings here are used ONLY when running `wrangler dev` without --env.
+# Named environments (development / staging / production) do NOT inherit these.
+# Each named env must redeclare every binding it needs.
+# ============================================================================
+
 [[kv_namespaces]]
 binding = "RATE_LIMIT_KV"
 id = "c45ac18997334201a93ff4b7605bd877"
 preview_id = "afb5bd3fed6244a29f63a9a63a1370d1"
 
-# Rate limiting binding — per-minute atomic limit (GA syntax, requires Wrangler >= 4.36.0)
-# namespace_id must be a unique integer within your Cloudflare account.
-# Each environment uses a different namespace_id to keep counters isolated.
 [[ratelimits]]
 name = "RATE_LIMITER_MINUTE"
 namespace_id = "10010"
 simple = { limit = 60, period = 60 }
 
-# Development environment
+# ============================================================================
+# DEVELOPMENT — deployed as "shared-email-api-dev"
+# Deploy:  npm run deploy:development
+# ============================================================================
+
 [env.development]
 name = "shared-email-api-dev"
 vars = { ENVIRONMENT = "development", AWS_REGION = "ap-south-1" }
 
-# Bindings are NOT inheritable — must be declared per named environment
 [[env.development.kv_namespaces]]
 binding = "RATE_LIMIT_KV"
 id = "c45ac18997334201a93ff4b7605bd877"
@@ -33,35 +40,53 @@ name = "RATE_LIMITER_MINUTE"
 namespace_id = "10010"
 simple = { limit = 60, period = 60 }
 
-# Staging environment
+# ============================================================================
+# STAGING — deployed as "shared-email-api-staging"
+# Deploy:  npm run deploy:staging
+#
+# IMPORTANT: Before first deploy, create a dedicated KV namespace:
+#   wrangler kv namespace create RATE_LIMIT_KV --env staging
+# Then replace STAGING_KV_ID and STAGING_KV_PREVIEW_ID below with the output.
+# ============================================================================
+
 [env.staging]
 name = "shared-email-api-staging"
 vars = { ENVIRONMENT = "staging", AWS_REGION = "ap-south-1" }
 
 [[env.staging.kv_namespaces]]
 binding = "RATE_LIMIT_KV"
-id = "c45ac18997334201a93ff4b7605bd877"
-preview_id = "afb5bd3fed6244a29f63a9a63a1370d1"
+id = "bd5c0a1fa7554a91b6acbff1b345997e"
 
 [[env.staging.ratelimits]]
 name = "RATE_LIMITER_MINUTE"
 namespace_id = "10020"
 simple = { limit = 60, period = 60 }
 
-# Production environment
+# ============================================================================
+# PRODUCTION — deployed as "shared-email-api-production"
+# Deploy:  npm run deploy:production
+#
+# IMPORTANT: Before first deploy, create a dedicated KV namespace:
+#   wrangler kv namespace create RATE_LIMIT_KV --env production
+# Then replace PRODUCTION_KV_ID below with the output. No preview_id needed.
+# ============================================================================
+
 [env.production]
 name = "shared-email-api-production"
 vars = { ENVIRONMENT = "production", AWS_REGION = "ap-south-1" }
 
 [[env.production.kv_namespaces]]
 binding = "RATE_LIMIT_KV"
-id = "c45ac18997334201a93ff4b7605bd877"
+id = "9ce4234505744e7e9e9c01a5c1b0b1b0"
 
 [[env.production.ratelimits]]
 name = "RATE_LIMITER_MINUTE"
 namespace_id = "10030"
 simple = { limit = 60, period = 60 }
 
-# Observability
+# ============================================================================
+# OBSERVABILITY
+# ============================================================================
+
 [observability]
 enabled = true

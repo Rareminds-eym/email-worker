@@ -72,16 +72,24 @@ export interface EmailAttachment {
 export interface SendEmailResponse {
   success: boolean;
   messageId?: string;
+  customMessageId?: string;
   recipient?: string | string[];
   timestamp?: string;
   error?: string;
   errorCode?: string;
+  errorType?: string;
+  shouldRetry?: boolean;
 }
 
 export interface HealthResponse {
   status: 'healthy' | 'degraded' | 'unhealthy';
   timestamp: string;
   version: string;
+  checks: {
+    aws: { status: 'ok' | 'error'; message?: string };
+    kv: { status: 'ok' | 'error'; message?: string };
+    rateLimit: { status: 'ok' | 'error'; message?: string };
+  };
 }
 
 // ==================== INTERNAL TYPES ====================
@@ -100,11 +108,13 @@ export interface EmailMessage {
   bcc?: string[];
   attachments?: EmailAttachment[];
   metadata?: Record<string, any>;
+  messageId?: string;
 }
 
 export interface ProviderResponse {
   success: boolean;
   messageId?: string;
+  customMessageId?: string;
   error?: string;
   errorType?: 'permanent' | 'temporary' | 'unknown';
   shouldRetry?: boolean;
