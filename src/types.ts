@@ -34,15 +34,11 @@ export interface EmailConfig {
     accessKeyId: string;
     secretAccessKey: string;
     region: string;
+    configurationSet?: string;
   };
   defaultFrom: {
     email: string;
     name: string;
-  };
-  rateLimit: {
-    perMinute: number;
-    perHour: number;
-    perDay: number;
   };
 }
 
@@ -63,11 +59,7 @@ export interface SendEmailRequest {
   metadata?: Record<string, any>;
 }
 
-export interface EmailAttachment {
-  filename: string;
-  content: string; // Base64 encoded
-  contentType: string;
-}
+
 
 export interface SendEmailResponse {
   success: boolean;
@@ -106,7 +98,6 @@ export interface EmailMessage {
   text?: string;
   cc?: string[];
   bcc?: string[];
-  attachments?: EmailAttachment[];
   metadata?: Record<string, any>;
   messageId?: string;
 }

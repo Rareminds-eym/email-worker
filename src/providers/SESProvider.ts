@@ -2,14 +2,16 @@
  * AWS SES email provider
  */
 
+import { Buffer } from 'node:buffer';
 import { AwsClient } from 'aws4fetch';
 import type { EmailMessage, ProviderResponse, EmailConfig } from '../types';
 import { BaseProvider } from './BaseProvider';
+import { TIMEOUTS } from '../constants';
 
 export class SESProvider extends BaseProvider {
   readonly type = 'ses';
   private aws: AwsClient;
-  
+
   constructor(private config: EmailConfig) {
     super();
     // 'service' must be set explicitly — aws4fetch infers 'email' from the
@@ -21,23 +23,17 @@ export class SESProvider extends BaseProvider {
       service: 'ses',
     });
   }
-  
+
   async send(message: EmailMessage): Promise<ProviderResponse> {
     try {
       const sesEndpoint = `https://email.${this.config.aws.region}.amazonaws.com/v2/email/outbound-emails`;
-      
+
       // Build raw email with Message-ID header
       const rawEmail = this.buildRawEmail(message);
-      
-      // Convert to base64 using native TextEncoder and btoa
-      const encoder = new TextEncoder();
-      const data = encoder.encode(rawEmail);
-      let binary = '';
-      for (let i = 0; i < data.length; i++) {
-        binary += String.fromCharCode(data[i]);
-      }
-      const base64 = btoa(binary);
-      
+
+      // Convert to base64 using native Buffer for performance
+      const base64 = Buffer.from(rawEmail).toString('base64');
+
       const response = await this.aws.fetch(sesEndpoint, {
         method: 'POST',
         headers: {
@@ -50,28 +46,30 @@ export class SESProvider extends BaseProvider {
             BccAddresses: message.bcc || [],
           },
           FromEmailAddress: message.from.email,
+          ...(this.config.aws.configurationSet ? { ConfigurationSetName: this.config.aws.configurationSet } : {}),
           Content: {
             Raw: {
               Data: base64,
             },
           },
         }),
+        signal: (globalThis as any).AbortSignal.timeout(TIMEOUTS.EMAIL_SEND),
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`SES API error: ${response.status} ${response.statusText} - ${errorText}`);
       }
-      
+
       const result = await response.json() as { MessageId: string };
-      
+
       return {
         success: true,
         messageId: result.MessageId,
       };
     } catch (error: any) {
       const errorType = this.classifyError(error);
-      
+
       return {
         success: false,
         error: error.message,
@@ -80,9 +78,17 @@ export class SESProvider extends BaseProvider {
       };
     }
   }
-  
+
   async testConnection(): Promise<boolean> {
-    return true;
+    try {
+      const response = await this.aws.fetch(`https://email.${this.config.aws.region}.amazonaws.com/v2/email/account`, {
+        method: 'GET',
+        signal: (globalThis as any).AbortSignal.timeout(TIMEOUTS.SMTP_CONNECTION),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
   }
 
   private sanitizeHeader(value: string): string {
@@ -113,14 +119,14 @@ export class SESProvider extends BaseProvider {
   }
 
   private buildRawEmail(message: EmailMessage): string {
-    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+    const boundary = `----=_Part_${crypto.randomUUID()}`;
     const date = new Date().toUTCString();
-    
+
     const fromName = this.formatDisplayName(message.from.name);
     const fromEmail = this.sanitizeHeader(message.from.email);
     const subject = this.encodeRFC2047(message.subject);
     const toAddresses = message.to.map(addr => this.sanitizeHeader(addr));
-    
+
     // Build headers
     const headers: string[] = [
       `From: ${fromName} <${fromEmail}>`,
@@ -130,43 +136,43 @@ export class SESProvider extends BaseProvider {
       `MIME-Version: 1.0`,
       `Content-Type: multipart/alternative; boundary="${boundary}"`,
     ];
-    
+
     // Add Message-ID if present
     if (message.messageId) {
       headers.push(`Message-ID: ${this.sanitizeHeader(message.messageId)}`);
     }
-    
+
     // Add optional headers
     if (message.replyTo) {
-      headers.push(`Reply-To: ${this.encodeRFC2047(message.replyTo)}`);
+      headers.push(`Reply-To: ${this.sanitizeHeader(message.replyTo)}`);
     }
-    
+
     if (message.cc && message.cc.length > 0) {
       const ccAddresses = message.cc.map(addr => this.sanitizeHeader(addr));
       headers.push(`Cc: ${ccAddresses.join(', ')}`);
     }
-    
+
     // Build body parts
-    const textPart = message.text || message.html.replace(/<[^>]*>/g, '');
-    
+    const textPart = message.text || message.html.replace(/<(style|script)[^>]*>[\s\S]*?<\/\1>/gi, '').replace(/<[^>]*>/g, '').trim();
+
     const parts: string[] = [
       headers.join('\r\n'),
       '',
       `--${boundary}`,
       `Content-Type: text/plain; charset=UTF-8`,
-      `Content-Transfer-Encoding: 8bit`,
+      `Content-Transfer-Encoding: base64`,
       '',
-      textPart,
+      Buffer.from(textPart).toString('base64'),
       '',
       `--${boundary}`,
       `Content-Type: text/html; charset=UTF-8`,
-      `Content-Transfer-Encoding: 8bit`,
+      `Content-Transfer-Encoding: base64`,
       '',
-      message.html,
+      Buffer.from(message.html).toString('base64'),
       '',
       `--${boundary}--`,
     ];
-    
+
     return parts.join('\r\n');
   }
 }

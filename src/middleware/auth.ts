@@ -53,7 +53,7 @@ export function authenticateRequest(request: Request, env: Env): void {
   const apiKey =
     request.headers.get('X-Internal-Api-Key') ||
     request.headers.get('X-API-Key') ||
-    request.headers.get('Authorization')?.replace('Bearer ', '');
+    request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '');
 
   if (!apiKey) {
     throw new AuthenticationError(

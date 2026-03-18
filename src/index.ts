@@ -9,7 +9,7 @@ import { EmailWorkerError, AuthenticationError, RateLimitError, ValidationError 
 import { getCorsHeaders, VERSION } from './constants';
 import { authenticateRequest } from './middleware/auth';
 import { checkRateLimit } from './middleware/rateLimit';
-import { logRequest, logResponse, logError } from './middleware/logger';
+import { log, logRequest, logResponse, logError } from './middleware/logger';
 import { handleSend } from './routes/send';
 import { handleHealth } from './routes/health';
 
@@ -46,28 +46,44 @@ router.get('/', () => {
 // ==================== AUTHENTICATED ROUTES ====================
 
 router.post('/send', async (request, env: Env) => {
+  // ==================== CORS EARLY RETURN ====================
+  const corsHeaders = getCorsHeaders(request, env);
+  if (request.headers.get('Origin') && !corsHeaders['Access-Control-Allow-Origin']) {
+    return Response.json({ success: false, error: 'Origin not allowed' }, { status: 403, headers: corsHeaders });
+  }
+
   const startTime = Date.now();
-  
+  const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
+
   try {
     // Authenticate
     authenticateRequest(request, env);
-    logRequest(request, null);
-    
+    logRequest(request, { requestId });
+
     // Rate limit
-    await checkRateLimit(env);
-    
+    await checkRateLimit(request, env);
+
     // Handle request
     const response = await handleSend(request, env);
-    
+
     // Add CORS headers
     Object.entries(getCorsHeaders(request, env)).forEach(([key, value]) => {
       response.headers.set(key, value);
     });
-    
-    logResponse(request, response, null, Date.now() - startTime);
+
+    logResponse(request, response, { requestId }, Date.now() - startTime);
     return response;
   } catch (error: any) {
-    logError(error, { path: '/send' });
+    const isClientError = error instanceof AuthenticationError || error instanceof ValidationError || error instanceof RateLimitError;
+    const logLevel = isClientError ? 'warn' : 'error';
+    const requestId = request.headers.get('cf-ray') || 'unknown';
+
+    log(logLevel, error.message || 'Error processing request', {
+      error: error.stack || error.toString(),
+      path: '/send',
+      requestId
+    });
+
     return handleError(error, request, env);
   }
 });
@@ -76,19 +92,19 @@ router.post('/send', async (request, env: Env) => {
 
 // ==================== 404 HANDLER ====================
 
-router.all('*', (request) => {
+router.all('*', (request, env: Env) => {
   return Response.json({
     success: false,
     error: 'Route not found',
     errorCode: 'NOT_FOUND',
-  }, { status: 404, headers: getCorsHeaders(request) });
+  }, { status: 404, headers: getCorsHeaders(request, env) });
 });
 
 // ==================== ERROR HANDLER ====================
 
 function handleError(error: any, request: Request, env?: Env): Response {
   const corsHeaders = getCorsHeaders(request, env);
-  
+
   if (error instanceof AuthenticationError) {
     return Response.json({
       success: false,
@@ -96,14 +112,14 @@ function handleError(error: any, request: Request, env?: Env): Response {
       errorCode: error.code,
     }, { status: error.statusCode, headers: corsHeaders });
   }
-  
+
   if (error instanceof RateLimitError) {
     return Response.json({
       success: false,
       error: error.message,
       errorCode: error.code,
       retryAfter: error.retryAfter,
-    }, { 
+    }, {
       status: error.statusCode,
       headers: {
         ...corsHeaders,
@@ -111,7 +127,7 @@ function handleError(error: any, request: Request, env?: Env): Response {
       },
     });
   }
-  
+
   if (error instanceof ValidationError) {
     return Response.json({
       success: false,
@@ -120,7 +136,7 @@ function handleError(error: any, request: Request, env?: Env): Response {
       details: error.details,
     }, { status: error.statusCode, headers: corsHeaders });
   }
-  
+
   if (error instanceof EmailWorkerError) {
     return Response.json({
       success: false,
@@ -129,7 +145,7 @@ function handleError(error: any, request: Request, env?: Env): Response {
       details: error.details,
     }, { status: error.statusCode, headers: corsHeaders });
   }
-  
+
   // Unknown error
   console.error('Unhandled error:', error);
   return Response.json({

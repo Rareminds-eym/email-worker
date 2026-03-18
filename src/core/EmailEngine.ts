@@ -15,10 +15,10 @@ export class EmailEngine {
 
   async send(request: SendEmailRequest): Promise<ProviderResponse> {
     const message = this.buildMessage(request);
-    
+
     // Generate globally unique Message-ID for this email
     message.messageId = `<${crypto.randomUUID()}@email.rareminds.in>`;
-    
+
     let lastResponse: ProviderResponse | undefined;
 
     for (let attempt = 0; attempt < RETRY.MAX_ATTEMPTS; attempt++) {
@@ -42,12 +42,10 @@ export class EmailEngine {
 
     return lastResponse!;
   }
-  
+
   private buildMessage(request: SendEmailRequest): EmailMessage {
-    const toList = Array.isArray(request.to) ? request.to : [request.to];
-    
     return {
-      to: toList,
+      to: request.to as string[],
       from: {
         email: request.from || this.config.defaultFrom.email,
         name: request.fromName || this.config.defaultFrom.name,

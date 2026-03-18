@@ -19,15 +19,11 @@ export function getEmailConfig(env: Env): EmailConfig {
       accessKeyId: env.AWS_ACCESS_KEY_ID,
       secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
       region: env.AWS_REGION,
+      configurationSet: (env as any).SES_CONFIGURATION_SET,
     },
     defaultFrom: {
       email: env.DEFAULT_FROM_EMAIL || 'noreply@rareminds.in',
       name: env.DEFAULT_FROM_NAME || 'Skill Passport',
-    },
-    rateLimit: {
-      perMinute: 60,
-      perHour: 1000,
-      perDay: 10000,
     },
   };
 }

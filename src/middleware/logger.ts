@@ -46,10 +46,10 @@ export function log(level: LogLevel, message: string, data?: any) {
   // Build a flat JSON object.  Fixed fields are declared first so that
   // any conflicting keys in `data` do NOT overwrite them (spread order).
   const logData = {
+    ...data, // caller-supplied context (method, url, status, etc.)
     timestamp,
     level,
     message,
-    ...data, // caller-supplied context (method, url, status, etc.)
   };
 
   // Route to the correct console stream so Cloudflare's log pipeline
