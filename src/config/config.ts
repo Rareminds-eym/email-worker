@@ -14,6 +14,10 @@ export function getEmailConfig(env: Env): EmailConfig {
     }
   }
 
+  if (!env.DEFAULT_FROM_EMAIL || !env.DEFAULT_FROM_NAME) {
+    throw new Error('Missing required: DEFAULT_FROM_EMAIL, DEFAULT_FROM_NAME');
+  }
+
   return {
     aws: {
       accessKeyId: env.AWS_ACCESS_KEY_ID,
@@ -22,8 +26,8 @@ export function getEmailConfig(env: Env): EmailConfig {
       configurationSet: (env as any).SES_CONFIGURATION_SET,
     },
     defaultFrom: {
-      email: env.DEFAULT_FROM_EMAIL || 'noreply@rareminds.in',
-      name: env.DEFAULT_FROM_NAME || 'Skill Passport',
+      email: env.DEFAULT_FROM_EMAIL,
+      name: env.DEFAULT_FROM_NAME,
     },
   };
 }

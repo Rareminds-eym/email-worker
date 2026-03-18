@@ -5,7 +5,15 @@
 import type { Env, HealthResponse } from '../types';
 import { VERSION } from '../constants';
 
-export async function handleHealth(
+export async function handleHealth(request: Request, env: Env): Promise<Response> {
+  return Response.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    version: VERSION,
+  }, { status: 200 });
+}
+
+export async function handleInternalHealth(
   request: Request,
   env: Env
 ): Promise<Response> {

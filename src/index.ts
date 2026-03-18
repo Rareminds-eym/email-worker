@@ -11,7 +11,7 @@ import { authenticateRequest } from './middleware/auth';
 import { checkRateLimit } from './middleware/rateLimit';
 import { log, logRequest, logResponse, logError } from './middleware/logger';
 import { handleSend } from './routes/send';
-import { handleHealth } from './routes/health';
+import { handleHealth, handleInternalHealth } from './routes/health';
 
 const router = Router();
 
@@ -22,6 +22,16 @@ router.options('*', (request, env: Env) => {
     status: 204,
     headers: getCorsHeaders(request, env),
   });
+});
+
+// ==================== GLOBAL MIDDLEWARE ====================
+
+router.all('*', (request, env: Env) => {
+  // Global CORS Early Block (Enforces safe origin restrictions for ALL routes)
+  const corsHeaders = getCorsHeaders(request, env);
+  if (request.headers.get('Origin') && !corsHeaders['Access-Control-Allow-Origin']) {
+    return Response.json({ success: false, error: 'Origin not allowed' }, { status: 403, headers: corsHeaders });
+  }
 });
 
 // ==================== PUBLIC ROUTES (NO AUTH) ====================
@@ -40,22 +50,16 @@ router.get('/', (request, env: Env) => {
     version: VERSION,
     endpoints: {
       'POST /send': 'Send email with HTML content',
-      'GET /health': 'Health check',
+      'GET /health': 'Health check (Public)',
+      'GET /internal/health': 'Health check (Detailed)',
     },
     authentication: 'X-Internal-Api-Key header (preferred), X-API-Key header, or Authorization: Bearer token',
-    documentation: 'https://docs.example.com/email-api',
   }, { headers: getCorsHeaders(request, env) });
 });
 
 // ==================== AUTHENTICATED ROUTES ====================
 
 router.post('/send', async (request, env: Env) => {
-  // ==================== CORS EARLY RETURN ====================
-  const corsHeaders = getCorsHeaders(request, env);
-  if (request.headers.get('Origin') && !corsHeaders['Access-Control-Allow-Origin']) {
-    return Response.json({ success: false, error: 'Origin not allowed' }, { status: 403, headers: corsHeaders });
-  }
-
   const startTime = Date.now();
   const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
 
@@ -80,16 +84,28 @@ router.post('/send', async (request, env: Env) => {
   } catch (error: any) {
     const isClientError = error instanceof AuthenticationError || error instanceof ValidationError || error instanceof RateLimitError;
     const logLevel = isClientError ? 'warn' : 'error';
-    const requestId = request.headers.get('cf-ray') || 'unknown';
 
-    log(logLevel, error.message || 'Error processing request', {
-      error: error.stack || error.toString(),
-      path: '/send',
-      requestId
-    });
+    if (logLevel === 'error') {
+      logError(error, { path: '/send', requestId });
+    } else {
+      log(logLevel, error.message || 'Client request rejected', {
+        error: error.message,
+        path: '/send',
+        requestId
+      });
+    }
 
     return handleError(error, request, env);
   }
+});
+
+router.get('/internal/health', async (request, env: Env) => {
+  authenticateRequest(request, env);
+  const response = await handleInternalHealth(request, env);
+  Object.entries(getCorsHeaders(request, env)).forEach(([key, value]) => {
+    response.headers.set(key, value);
+  });
+  return response;
 });
 
 
@@ -163,17 +179,26 @@ function handleError(error: any, request: Request, env?: Env): Response {
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
+
     try {
-      return await router.handle(request, env, ctx);
+      const response = await router.handle(request, env, ctx);
+      // Append X-Request-Id globally
+      const newResponse = new Response(response.body, response);
+      newResponse.headers.set('X-Request-Id', requestId);
+      return newResponse;
     } catch (error: any) {
       console.error('Fatal unhandled exception in router:', error);
       return Response.json(
         {
           success: false,
           error: 'Critical internal error',
-          errorCode: 'FATAL_ERROR'
+          errorCode: 'FATAL_ERROR',
         },
-        { status: 500, headers: getCorsHeaders(request, env) }
+        {
+          status: 500,
+          headers: { ...getCorsHeaders(request, env), 'X-Request-Id': requestId }
+        }
       );
     }
   },

@@ -4,7 +4,7 @@
 
 import { Buffer } from 'node:buffer';
 import { AwsClient } from 'aws4fetch';
-import type { EmailMessage, ProviderResponse, EmailConfig } from '../types';
+import { EmailMessage, ProviderResponse, ProviderError, EmailConfig } from '../types';
 import { BaseProvider } from './BaseProvider';
 import { TIMEOUTS } from '../constants';
 
@@ -53,12 +53,14 @@ export class SESProvider extends BaseProvider {
             },
           },
         }),
-        signal: (globalThis as any).AbortSignal.timeout(TIMEOUTS.EMAIL_SEND),
+        signal: AbortSignal.timeout(TIMEOUTS.EMAIL_SEND),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`SES API error: ${response.status} ${response.statusText} - ${errorText}`);
+        // ProviderError signature: (message, shouldRetry, code, statusCode, details)
+        const isTemporary = response.status === 429 || response.status >= 500;
+        throw new ProviderError(`SES API error: ${response.statusText} - ${errorText}`, isTemporary, 'PROVIDER_API_ERROR', response.status);
       }
 
       const result = await response.json() as { MessageId: string };
@@ -92,7 +94,7 @@ export class SESProvider extends BaseProvider {
   }
 
   private sanitizeHeader(value: string): string {
-    return value.replace(/[\r\n]/g, '');
+    return value.replace(/[\r\n,<>]/g, '');
   }
 
   private encodeRFC2047(value: string): string {
@@ -153,6 +155,8 @@ export class SESProvider extends BaseProvider {
     }
 
     // Build body parts
+    // Note: This naive regex fallback is fragile against deeply nested HTML.
+    // Callers should strongly supplement complex marketing emails with the explicit `text` field.
     const textPart = message.text || message.html.replace(/<(style|script)[^>]*>[\s\S]*?<\/\1>/gi, '').replace(/<[^>]*>/g, '').trim();
 
     const parts: string[] = [

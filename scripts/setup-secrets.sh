@@ -20,7 +20,8 @@ for ENV in "${ENVS[@]}"; do
   echo "=== Setting secrets for environment: $ENV ==="
   for SECRET in "${SECRETS[@]}"; do
     echo -n "Enter value for $SECRET (leave blank to skip): "
-    read -r VALUE
+    read -rs VALUE
+    echo ""
     if [ -n "$VALUE" ]; then
       echo "$VALUE" | wrangler secret put "$SECRET" --env "$ENV"
       echo "✓ $SECRET set for $ENV"

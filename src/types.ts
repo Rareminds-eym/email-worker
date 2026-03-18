@@ -10,18 +10,19 @@ export interface Env {
   // KV Namespaces
   RATE_LIMIT_KV: KVNamespace;
   RATE_LIMITER_MINUTE: RateLimit;
-  
+
   // Environment variables
   ENVIRONMENT: 'development' | 'staging' | 'production';
-  
+  ALLOWED_ORIGINS?: string;
+
   // API Key for authentication
   API_KEY: string;
-  
+
   // AWS SES credentials (shared across all websites)
   AWS_ACCESS_KEY_ID: string;
   AWS_SECRET_ACCESS_KEY: string;
   AWS_REGION: string;
-  
+
   // Default from address
   DEFAULT_FROM_EMAIL: string;
   DEFAULT_FROM_NAME: string;
@@ -74,7 +75,7 @@ export interface SendEmailResponse {
 }
 
 export interface HealthResponse {
-  status: 'healthy' | 'degraded' | 'unhealthy';
+  status: 'healthy' | 'unhealthy';
   timestamp: string;
   version: string;
   checks: {
@@ -157,8 +158,14 @@ export class ValidationError extends EmailWorkerError {
 }
 
 export class ProviderError extends EmailWorkerError {
-  constructor(message: string, public shouldRetry: boolean = false) {
-    super(message, 'PROVIDER_ERROR', 500);
+  constructor(
+    message: string,
+    public shouldRetry: boolean = false,
+    code: string = 'PROVIDER_ERROR',
+    statusCode: number = 500,
+    details?: any
+  ) {
+    super(message, code, statusCode, details);
     this.name = 'ProviderError';
   }
 }

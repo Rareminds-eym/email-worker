@@ -18,6 +18,24 @@ export async function handleSend(
   env: Env
 ): Promise<Response> {
   try {
+    const contentType = request.headers.get('Content-Type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new ValidationError('Content-Type must be application/json');
+    }
+
+    const contentLength = parseInt(request.headers.get('Content-Length') || '0', 10);
+    if (contentLength > 2 * 1024 * 1024) { // 2MB hard limit
+      throw new ValidationError('Request body too large. Maximum 2MB allowed.');
+    }
+
+    const idempotencyKey = request.headers.get('Idempotency-Key');
+    if (idempotencyKey) {
+      const cached = await env.RATE_LIMIT_KV.get(`idem:${idempotencyKey}`);
+      if (cached) {
+        return Response.json(JSON.parse(cached), { status: 200 });
+      }
+    }
+
     let body;
     try {
       body = await request.json();
@@ -50,7 +68,13 @@ export async function handleSend(
         shouldRetry: result.shouldRetry,
       };
 
-      return Response.json(response, { status: 500 });
+      const statusCode = result.shouldRetry ? 503 : 500;
+      const headers: Record<string, string> = {};
+      if (result.shouldRetry) {
+        headers['Retry-After'] = '30';
+      }
+
+      return Response.json(response, { status: statusCode, headers });
     }
 
     log('info', 'Email sent successfully', {
@@ -65,6 +89,11 @@ export async function handleSend(
       recipient: validatedRequest.to,
       timestamp: new Date().toISOString(),
     };
+
+    if (idempotencyKey) {
+      // Store success result for 24 hours
+      await env.RATE_LIMIT_KV.put(`idem:${idempotencyKey}`, JSON.stringify(response), { expirationTtl: 86400 });
+    }
 
     return Response.json(response, { status: 200 });
   } catch (error: any) {

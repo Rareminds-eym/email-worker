@@ -21,6 +21,16 @@ export abstract class BaseProvider {
    * Classify error type for retry logic
    */
   protected classifyError(error: any): 'permanent' | 'temporary' | 'unknown' {
+    if (error && error.name === 'ProviderError' && typeof error.statusCode === 'number') {
+      const { statusCode } = error;
+      if (statusCode === 400 || statusCode === 401 || statusCode === 403 || statusCode === 404) {
+        return 'permanent';
+      }
+      if (statusCode === 429 || statusCode >= 500) {
+        return 'temporary';
+      }
+    }
+
     const errorMessage = (error?.message || '').toLowerCase();
 
     // Permanent failures (don't retry)

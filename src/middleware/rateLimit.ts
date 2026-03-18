@@ -19,7 +19,9 @@ import { RATE_LIMITS } from '../constants';
  *   at the edge with zero cold-start latency and no KV consistency concerns.
  * - Per-hour and per-day use KV for cost efficiency (native rate limiters are
  *   billed per request; KV reads are cheaper at scale). These are "soft" limits
- *   due to eventual consistency but acceptable for longer windows.
+ *   due to eventual consistency but acceptable for longer windows. Note: There is
+ *   a known read-then-write race condition here for extremely high-concurrency 
+ *   bursts, but the primary Native minute limiter naturally governs this intake.
  * 
  * Time bucketing:
  * - Minute buckets: Math.floor(now / 60000) creates aligned 60-second windows
@@ -33,8 +35,12 @@ import { RATE_LIMITS } from '../constants';
 export async function checkRateLimit(request: Request, env: Env): Promise<void> {
   const now = Date.now();
 
-  // Extract API key to use as a tenant-specific rate limit key
-  const apiKey = request.headers.get('X-Internal-Api-Key') || request.headers.get('X-API-Key') || 'global';
+  // Extract API key for tenant isolation (handles Bearer tokens)
+  const apiKey =
+    request.headers.get('X-Internal-Api-Key') ||
+    request.headers.get('X-API-Key') ||
+    request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') ||
+    'global';
 
   // ============================================================================
   // TIER 1: Per-minute rate limit (atomic enforcement via native binding)

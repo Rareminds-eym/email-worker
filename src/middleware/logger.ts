@@ -16,10 +16,8 @@
  *   - 'debug'  → console.log()    (standard output; filter at ingestion)
  *
  * IMPORTANT — spread ordering in `logData`:
- *   The `...data` spread comes AFTER the fixed fields (timestamp, level,
- *   message).  If a caller accidentally passes a `data` object that contains
- *   keys named `timestamp`, `level`, or `message`, those fields will be
- *   overwritten silently.  This is an accepted trade-off for simplicity.
+ *   The `...data` spread comes FIRST. If a caller accidentally passes a `data` object that contains
+ *   keys named `timestamp`, `level`, or `message`, those caller fields will be overridden securely.
  *   If strict field protection is required, nest `data` under a `context`
  *   key instead of spreading it flat.
  */
@@ -43,8 +41,8 @@ type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 export function log(level: LogLevel, message: string, data?: any) {
   const timestamp = new Date().toISOString();
 
-  // Build a flat JSON object.  Fixed fields are declared first so that
-  // any conflicting keys in `data` do NOT overwrite them (spread order).
+  // Build a flat JSON object. Caller-supplied context is spread FIRST; 
+  // fixed fields declared AFTER to ensure timestamp/level/message always win over conflicting keys.
   const logData = {
     ...data, // caller-supplied context (method, url, status, etc.)
     timestamp,

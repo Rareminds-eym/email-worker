@@ -5,9 +5,9 @@
 export const VERSION = '1.0.0';
 
 export const RATE_LIMITS = {
-  DEFAULT_PER_MINUTE: 60,
-  DEFAULT_PER_HOUR: 3600,
-  DEFAULT_PER_DAY: 86400,
+  DEFAULT_PER_MINUTE: 20,
+  DEFAULT_PER_HOUR: 500,
+  DEFAULT_PER_DAY: 5000,
 } as const;
 
 export const TIMEOUTS = {
@@ -80,4 +80,4 @@ export const ERROR_CODES = {
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;
 
-export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
