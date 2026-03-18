@@ -1,38 +1,46 @@
 # Shared Email API Worker 📧
 
-A high-performance, single-tenant, industrial-grade Cloudflare Worker that provides an email sending API via AWS SES.
+A high-performance, industrial-grade Cloudflare Worker providing a highly available email sending API via AWS SES v2.
 
-## Features
-- **AWS SES V2 Integration** for high deliverability.
-- **Robust Rate Limiting**: Three-tier limits (minute via CF Native, hour/day via CF KV).
-- **Security First**: API-key authenticated, single-tenant isolated, CORS-protected, and tightly validated against malicious payloads.
-- **High Performance**: Native Buffer bindings for O(1) memory Base64 conversion, lazy-loaded singletons, and asynchronous telemetry.
+This repository enforces a strict, purely stateless architecture utilizing Cloudflare's V8 Isolates and Native Rate Limiter hooks designed to maintain microsecond latency under heavy concurrent loads.
 
-## Deployment
+## 🚀 Features
+- **AWS SES v2 & `aws4fetch`**: Fully native HMAC-SHA256 signature alignment.
+- **Single-Worker Topology**: A consolidated `wrangler.toml` configuration preventing dashboard fragmentation.
+- **Hardware Timeouts & Fail-safes**: Integrated `AbortSignal.timeout` ceilings and universal `try...catch` failsafes returning deterministic JSON unconditionally.
+- **Tenant Rate Isolation**: Three-tier limits (20/min via Native Limiter, 500/hr, 5000/day via KV), explicitly scoped to individual API keys.
+- **Security Defenses**:
+  - `Content-Length` hardcapped at 2MB.
+  - Comma-injection prevention in all SMTP headers.
+  - JSON parse bombs explicitly mapped to `400 ValidationError`.
+- **Global CORS & Tracing**: Every response is stamped with `X-Request-Id` reflecting Cloudflare's internal `cf-ray` metrics.
+- **Idempotency Locks**: Network drops are resolved seamlessly using an `Idempotency-Key` tracking system across a 24-hour TTL window.
 
-Deploying is managed by Cloudflare Wrangler across three environments: `development`, `staging`, and `production`.
+## 📦 Deployment Strategy
 
-### 1. Configure Secrets
-Run the setup script which interacts with Wrangler to load your AWS credentials and API key:
+Deployment is managed universally for the `shared-email-api` instance.
+
+### 1. Provision KV Namespaces (First Time Only)
+Create the KV namespace and rate-limiter bindings and attach their identifiers to your `wrangler.toml`:
+```bash
+npm run kv:create
+```
+
+### 2. Configure Secrets
+Run the interactive setup script to vault your AWS credentials without leaking them to bash history:
 ```bash
 npm run secrets:setup
 ```
 
-### 2. Provision KV Namespaces (First Time Only)
-Create the KV namespace and update the `wrangler.toml` IDs if you are deploying to a new environment:
-```bash
-npm run kv:create:production
-# Note output IDs and insert into wrangler.toml under [env.production.kv_namespaces]
-```
-
 ### 3. Deploy
+Launch the unified instance to Cloudflare:
 ```bash
-npm run deploy:production
+npm run deploy
 ```
 
-## API Usage
+## 🔌 API Usage
 
-The API is authenticated using the `X-Internal-Api-Key` header with your configured API key.
+The API rejects unauthenticated requests. You must include your API Key via the standard `Authorization: Bearer <key>`, `X-API-Key`, or `X-Internal-Api-Key` headers.
 
 ### `POST /send`
 
@@ -41,24 +49,33 @@ The API is authenticated using the `X-Internal-Api-Key` header with your configu
   "to": ["user@example.com"],
   "subject": "Welcome to Skill Passport!",
   "html": "<h1>Welcome</h1><p>We are glad to have you.</p>",
+  "text": "Fallback text for terminal clients", // heavily recommended!
   "from": "onboarding@rareminds.in",
   "fromName": "Skill Passport Team",
   "replyTo": "support@rareminds.in"
 }
 ```
 
-#### Curl Example
+#### Safe Retry Pattern (Idempotency)
+Provide an `Idempotency-Key` UUID. If your network connection drops while AWS processes the email, a subsequent retry will return `200 OK` from the KV Cache instead of double-sending the email to the user.
 ```bash
 curl -X POST https://api.yourdomain.com/send \
   -H "Content-Type: application/json" \
   -H "X-Internal-Api-Key: your_super_secret_key" \
-  -d '{"to": ["test@example.com"], "subject": "Test", "html": "<p>Hello World</p>"}'
+  -H "Idempotency-Key: e49a3-5c2b-45... " \
+  -d '{"to": "test@example.com", "subject": "Test", "html": "<p>Hello</p>"}'
 ```
 
 ### `GET /health`
-A diagnostic probe endpoint that checks structural dependencies. Note that this endpoint redacts detailed credential validation to prevent mapping attacks.
+A public diagnostic probe endpoint that returns a flat `{ "status": "ok" }`. 
 
-## Architecture & Edge Cases
-- **Engine Re-use:** `aws4fetch` HMAC signing uses CPU. The `EmailEngine` caches per-isolate to minimize overhead.
-- **Memory Optimization:** SES payloads are strictly Base64 transferred. `Buffer.from` is utilized via `nodejs_compat` to prevent string allocation memory bombs.
-- **Retries:** Configured to automatically retry 2 additional times inside the isolate under `AbortSignal.timeout` wrappers, to prevent 522 edge hangs.
+### `GET /internal/health`
+An authenticated endpoint that maps out the live topology of internal Worker systems:
+- Pings the AWS SES `GetAccount` APIs.
+- Queries `RATE_LIMIT_KV` accessibility.
+- Validates the structural integrity of Cloudflare Native limiters.
+
+## 🛠 Internal Architecture Notes
+- **O(1) Memory Engine:** String concatenation in V8 limits scalable throughput. This system binds raw `node:buffer` structs natively via the `nodejs_compat` boundary to parse base64 payloads iteratively.
+- **Engine Isolates:** The `EmailEngine` caches per-isolate but checks strict rotational hashes of your AWS keys before execution.
+- **503 Degradation:** Any AWS degradation prompts the worker to intercept the drop, classify the HTTP Status, and return a clean `503 Service Unavailable` with a `Retry-After: 30` header back to your triggering microservices.
