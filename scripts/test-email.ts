@@ -9,14 +9,14 @@
  * API_URL=https://your-production-worker.workers.dev API_KEY=your_secret_key npx tsx scripts/test-email.ts
  */
 
-const API_URL = process.env.API_URL || 'http://localhost:8788';
+const API_URL = process.env.API_URL || 'https://shared-email-api.dark-mode-d021.workers.dev';
 const API_KEY = process.env.API_KEY || 'development_secret_key'; // Replace with your Dev/Prod API Key
 
 async function sendTestEmail() {
-    const payload = {
-        to: 'gokul@rareminds.in',
-        subject: 'Test Email Delivery - Shared Email API',
-        html: `
+  const payload = {
+    to: 'gokul@rareminds.in',
+    subject: 'Test Email Delivery - Shared Email API',
+    html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
         <h2 style="color: #0056b3;">Shared Email API Worker Tests</h2>
         <p>Hi Gokul,</p>
@@ -34,34 +34,34 @@ async function sendTestEmail() {
         </p>
       </div>
     `,
-        text: 'Hi Gokul, this is a test email from the Shared Email API Worker validating that plain-text fallbacks work.',
-    };
+    text: 'Hi Gokul, this is a test email from the Shared Email API Worker validating that plain-text fallbacks work.',
+  };
 
-    console.log(`Sending email to ${payload.to} via ${API_URL}/send...`);
+  console.log(`Sending email to ${payload.to} via ${API_URL}/send...`);
 
-    try {
-        const response = await fetch(`${API_URL}/send`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Internal-Api-Key': API_KEY, // Or Authorization: Bearer <key>
-            },
-            body: JSON.stringify(payload),
-        });
+  try {
+    const response = await fetch(`${API_URL}/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Internal-Api-Key': API_KEY, // Or Authorization: Bearer <key>
+      },
+      body: JSON.stringify(payload),
+    });
 
-        const data = await response.json();
+    const data = await response.json();
 
-        if (response.ok) {
-            console.log('✅ Email sent successfully!');
-            console.log('Message ID:', data.messageId);
-        } else {
-            console.error('❌ Failed to send email.');
-            console.error('Status:', response.status);
-            console.error('Error Details:', JSON.stringify(data, null, 2));
-        }
-    } catch (error) {
-        console.error('❌ Network error during request:', error);
+    if (response.ok) {
+      console.log('✅ Email sent successfully!');
+      console.log('Message ID:', data.messageId);
+    } else {
+      console.error('❌ Failed to send email.');
+      console.error('Status:', response.status);
+      console.error('Error Details:', JSON.stringify(data, null, 2));
     }
+  } catch (error) {
+    console.error('❌ Network error during request:', error);
+  }
 }
 
 sendTestEmail();

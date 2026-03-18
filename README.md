@@ -32,7 +32,23 @@ Run the interactive setup script to vault your AWS credentials without leaking t
 npm run secrets:setup
 ```
 
-### 3. Deploy
+Alternatively, you can set individual secrets manually using Wrangler:
+```bash
+npx wrangler secret put API_KEY
+npx wrangler secret put AWS_ACCESS_KEY_ID
+npx wrangler secret put AWS_SECRET_ACCESS_KEY
+npx wrangler secret put DEFAULT_FROM_EMAIL
+npx wrangler secret put DEFAULT_FROM_NAME
+```
+
+### 3. Local Development
+For local development, secrets should be stored in a `.dev.vars` file (this file is gitignored). Use the provided template to get started:
+```bash
+cp .dev.vars.example .dev.vars
+```
+Then edit `.dev.vars` with your local development credentials.
+
+### 4. Deploy
 Launch the unified instance to Cloudflare:
 ```bash
 npm run deploy
