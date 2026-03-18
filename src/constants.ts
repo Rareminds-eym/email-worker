@@ -12,13 +12,13 @@ export const RATE_LIMITS = {
 
 export const TIMEOUTS = {
   SMTP_CONNECTION: 10000, // 10 seconds
-  EMAIL_SEND: 30000, // 30 seconds
+  EMAIL_SEND: 8000, // 8 seconds, prevents 3 retries from busting CF 30s limits
 } as const;
 
 export const RETRY = {
   MAX_ATTEMPTS: 3,
-  INITIAL_DELAY_MS: 1000,
-  MAX_DELAY_MS: 10000,
+  INITIAL_DELAY_MS: 500,
+  MAX_DELAY_MS: 3000, // Hard ceiling prevents hanging socket waits
   BACKOFF_MULTIPLIER: 2,
 } as const;
 

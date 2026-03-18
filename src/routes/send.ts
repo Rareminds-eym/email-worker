@@ -3,6 +3,7 @@
  */
 
 import type { Env, SendEmailResponse } from '../types';
+import { ValidationError } from '../types';
 import { validateSendEmailRequest } from '../middleware/validator';
 import { EmailEngine } from '../core/EmailEngine';
 import { getEmailConfig } from '../config/config';
@@ -10,20 +11,27 @@ import { log } from '../middleware/logger';
 
 let cachedEngine: EmailEngine | null = null;
 let cachedRegion: string | null = null;
+let cachedAccessKey: string | null = null;
 
 export async function handleSend(
   request: Request,
   env: Env
 ): Promise<Response> {
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      throw new ValidationError('Malformed JSON payload');
+    }
     const validatedRequest = validateSendEmailRequest(body);
 
     const config = getEmailConfig(env);
 
-    if (!cachedEngine || cachedRegion !== env.AWS_REGION) {
+    if (!cachedEngine || cachedRegion !== env.AWS_REGION || cachedAccessKey !== env.AWS_ACCESS_KEY_ID) {
       cachedEngine = new EmailEngine(config);
       cachedRegion = env.AWS_REGION;
+      cachedAccessKey = env.AWS_ACCESS_KEY_ID;
     }
 
     const result = await cachedEngine.send(validatedRequest);

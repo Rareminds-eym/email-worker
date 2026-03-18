@@ -54,8 +54,8 @@ export async function checkRateLimit(request: Request, env: Env): Promise<void> 
   // ============================================================================
   // Generate time-bucketed keys for the current hour and day windows.
   // These keys naturally expire as time progresses to new buckets.
-  const hourKey = `rate:hour:${Math.floor(now / 3600000)}`;
-  const dayKey = `rate:day:${Math.floor(now / 86400000)}`;
+  const hourKey = `rate:hour:${apiKey}:${Math.floor(now / 3600000)}`;
+  const dayKey = `rate:day:${apiKey}:${Math.floor(now / 86400000)}`;
 
   // Fetch both counters concurrently to minimize latency (parallel I/O)
   const [hourValue, dayValue] = await Promise.all([

@@ -6,23 +6,23 @@ import type { EmailMessage, ProviderResponse } from '../types';
 
 export abstract class BaseProvider {
   abstract readonly type: string;
-  
+
   /**
    * Send an email
    */
   abstract send(message: EmailMessage): Promise<ProviderResponse>;
-  
+
   /**
    * Test provider connection
    */
   abstract testConnection(): Promise<boolean>;
-  
+
   /**
    * Classify error type for retry logic
    */
   protected classifyError(error: any): 'permanent' | 'temporary' | 'unknown' {
-    const errorMessage = error.message?.toLowerCase() || '';
-    
+    const errorMessage = (error?.message || '').toLowerCase();
+
     // Permanent failures (don't retry)
     if (
       errorMessage.includes('invalid email') ||
@@ -34,7 +34,7 @@ export abstract class BaseProvider {
     ) {
       return 'permanent';
     }
-    
+
     // Temporary failures (retry)
     if (
       errorMessage.includes('timeout') ||
@@ -47,7 +47,7 @@ export abstract class BaseProvider {
     ) {
       return 'temporary';
     }
-    
+
     return 'unknown';
   }
 }

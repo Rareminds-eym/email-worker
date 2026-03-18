@@ -27,10 +27,14 @@ router.options('*', (request, env: Env) => {
 // ==================== PUBLIC ROUTES (NO AUTH) ====================
 
 router.get('/health', async (request, env: Env) => {
-  return await handleHealth(request, env);
+  const response = await handleHealth(request, env);
+  Object.entries(getCorsHeaders(request, env)).forEach(([key, value]) => {
+    response.headers.set(key, value);
+  });
+  return response;
 });
 
-router.get('/', () => {
+router.get('/', (request, env: Env) => {
   return Response.json({
     service: 'Shared Email API',
     version: VERSION,
@@ -40,7 +44,7 @@ router.get('/', () => {
     },
     authentication: 'X-Internal-Api-Key header (preferred), X-API-Key header, or Authorization: Bearer token',
     documentation: 'https://docs.example.com/email-api',
-  });
+  }, { headers: getCorsHeaders(request, env) });
 });
 
 // ==================== AUTHENTICATED ROUTES ====================
@@ -159,6 +163,18 @@ function handleError(error: any, request: Request, env?: Env): Response {
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    return router.handle(request, env, ctx);
+    try {
+      return await router.handle(request, env, ctx);
+    } catch (error: any) {
+      console.error('Fatal unhandled exception in router:', error);
+      return Response.json(
+        {
+          success: false,
+          error: 'Critical internal error',
+          errorCode: 'FATAL_ERROR'
+        },
+        { status: 500, headers: getCorsHeaders(request, env) }
+      );
+    }
   },
 };
