@@ -11,7 +11,7 @@ import { authenticateRequest } from './middleware/auth';
 import { checkRateLimit } from './middleware/rateLimit';
 import { logRequest, logResponse, logError } from './middleware/logger';
 import { handleSend } from './routes/send';
-import { handleHealth } from './routes/health';
+import { handleHealth, handleDetailedHealth } from './routes/health';
 
 const router = Router();
 
@@ -45,12 +45,23 @@ router.get('/', () => {
 
 // ==================== AUTHENTICATED ROUTES ====================
 
+router.get('/internal/health', async (request, env: Env) => {
+  try {
+    await authenticateRequest(request, env);
+    const response = await handleDetailedHealth(request, env);
+    Object.entries(getCorsHeaders(request, env)).forEach(([k, v]) => response.headers.set(k, v));
+    return response;
+  } catch (error: any) {
+    return handleError(error, request, env);
+  }
+});
+
 router.post('/send', async (request, env: Env) => {
   const startTime = Date.now();
   
   try {
     // Authenticate
-    authenticateRequest(request, env);
+    await authenticateRequest(request, env);
     logRequest(request, null);
     
     // Rate limit

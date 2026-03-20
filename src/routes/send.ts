@@ -4,6 +4,7 @@
 
 import type { Env, SendEmailResponse } from '../types';
 import { validateSendEmailRequest } from '../middleware/validator';
+import { validateAndReadBody } from '../middleware/bodySize';
 import { EmailEngine } from '../core/EmailEngine';
 import { getEmailConfig } from '../config/config';
 import { log } from '../middleware/logger';
@@ -13,7 +14,9 @@ export async function handleSend(
   env: Env
 ): Promise<Response> {
   try {
-    const body = await request.json();
+    // Validate actual body size (not Content-Length header)
+    const bodyText = await validateAndReadBody(request);
+    const body = JSON.parse(bodyText);
     const validatedRequest = validateSendEmailRequest(body);
     
     const config = getEmailConfig(env);

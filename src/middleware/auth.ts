@@ -18,10 +18,11 @@
  *       • "Invalid API key"  → indicates the key is present but wrong
  *     This is acceptable UX for a private internal API; the messages do not
  *     expose the real key or hint at its format.
- *   - The comparison `apiKey !== env.API_KEY` is a direct string equality
- *     check.  Cloudflare Workers run in a V8 isolate where wall-clock timing
- *     attacks are not a practical threat, so a constant-time comparison is
- *     not required here.  Revisit if this worker is ever made public.
+ *   - Uses crypto.subtle.timingSafeEqual for constant-time comparison to
+ *     prevent timing side-channel attacks. While V8 isolates don't expose
+ *     performance.now(), network round-trip timing can still leak information
+ *     through statistical analysis, allowing attackers to extract secrets
+ *     character-by-character.
  */
 
 import type { Env } from '../types';
@@ -41,11 +42,17 @@ import { AuthenticationError } from '../types';
  *   - No auth header is present or all are empty
  *   - The extracted key does not match `env.API_KEY`
  *
+ * Security implementation:
+ *   - Uses SHA-256 hashing to produce fixed-length (32-byte) digests before comparison
+ *   - Eliminates timing side-channel that could leak key length information
+ *   - Compares hash digests using crypto.subtle.timingSafeEqual for constant-time comparison
+ *   - Prevents statistical timing analysis attacks over network round-trips
+ *
  * @param request - The incoming Cloudflare Workers Request object
  * @param env     - Worker environment bindings (contains API_KEY secret)
  * @throws {AuthenticationError} on missing or invalid credentials
  */
-export function authenticateRequest(request: Request, env: Env): void {
+export async function authenticateRequest(request: Request, env: Env): Promise<void> {
   // Priority: X-Internal-Api-Key → X-API-Key → Authorization: Bearer.
   // `replace` on the Authorization header is case-sensitive — "bearer"
   // (lowercase) will NOT be stripped, causing auth to fail intentionally
@@ -61,7 +68,31 @@ export function authenticateRequest(request: Request, env: Env): void {
     );
   }
 
-  if (apiKey !== env.API_KEY) {
+  // Hash-based constant-time comparison to prevent timing side-channel attacks
+  // 
+  // VULNERABILITY FIXED: Previous implementation leaked key length through timing
+  // - Length comparison created observable timing branch
+  // - Attacker could determine exact key length via statistical network timing analysis
+  // - Reduced brute-force search space from unbounded to fixed-length
+  //
+  // SOLUTION: Hash both inputs with SHA-256 before comparison
+  // - Produces fixed-length 32-byte digests regardless of input length
+  // - Eliminates length-dependent timing variations entirely
+  // - No observable difference between different-length vs same-length comparisons
+  // - Maintains constant-time comparison via crypto.subtle.timingSafeEqual
+  const encoder = new TextEncoder();
+  const userValue = encoder.encode(apiKey);
+  const secretValue = encoder.encode(env.API_KEY);
+
+  // Hash both values to fixed-length 32-byte digests
+  const userHash = await crypto.subtle.digest('SHA-256', userValue);
+  const secretHash = await crypto.subtle.digest('SHA-256', secretValue);
+
+  // Constant-time comparison of fixed-length hashes
+  // Both hashes are always 32 bytes, eliminating length-based timing variations
+  const isEqual = crypto.subtle.timingSafeEqual(userHash, secretHash);
+
+  if (!isEqual) {
     throw new AuthenticationError('Invalid API key');
   }
 }

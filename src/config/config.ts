@@ -26,8 +26,8 @@ export function getEmailConfig(env: Env): EmailConfig {
     },
     rateLimit: {
       perMinute: 60,
-      perHour: 1000,
-      perDay: 10000,
+      perHour: 0,  // Not enforced - Cloudflare limitation
+      perDay: 0,   // Not enforced - Cloudflare limitation
     },
   };
 }
