@@ -3,6 +3,7 @@
  */
 
 import type { Env, SendEmailResponse } from '../types';
+import { ValidationError } from '../types';
 import { validateSendEmailRequest } from '../middleware/validator';
 import { validateAndReadBody } from '../middleware/bodySize';
 import { EmailEngine } from '../core/EmailEngine';
@@ -16,7 +17,15 @@ export async function handleSend(
   try {
     // Validate actual body size (not Content-Length header)
     const bodyText = await validateAndReadBody(request);
-    const body = JSON.parse(bodyText);
+    
+    // Parse JSON with proper error handling
+    let body;
+    try {
+      body = JSON.parse(bodyText);
+    } catch (jsonError: any) {
+      throw new ValidationError(`Invalid JSON: ${jsonError.message}`);
+    }
+    
     const validatedRequest = validateSendEmailRequest(body);
     
     const config = getEmailConfig(env);
