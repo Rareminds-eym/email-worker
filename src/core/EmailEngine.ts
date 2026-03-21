@@ -15,10 +15,11 @@ export class EmailEngine {
 
   async send(request: SendEmailRequest): Promise<ProviderResponse> {
     const message = this.buildMessage(request);
-    
-    // Generate globally unique Message-ID for this email
-    message.messageId = `<${crypto.randomUUID()}@email.rareminds.in>`;
-    
+
+    // Generate globally unique Message-ID aligned with the sending domain (RFC 5322 section 3.6.4)
+    const fromDomain = message.from.email.split('@')[1] || 'email.rareminds.in';
+    message.messageId = `<${crypto.randomUUID()}@${fromDomain}>`;
+
     let lastResponse: ProviderResponse | undefined;
 
     for (let attempt = 0; attempt < RETRY.MAX_ATTEMPTS; attempt++) {
@@ -40,14 +41,16 @@ export class EmailEngine {
       }
     }
 
-    return lastResponse!;
+    if (!lastResponse) {
+      return { success: false, error: 'No send attempts made', errorType: 'unknown', shouldRetry: false };
+    }
+
+    return lastResponse;
   }
-  
+
   private buildMessage(request: SendEmailRequest): EmailMessage {
-    const toList = Array.isArray(request.to) ? request.to : [request.to];
-    
     return {
-      to: toList,
+      to: Array.isArray(request.to) ? request.to : [request.to],
       from: {
         email: request.from || this.config.defaultFrom.email,
         name: request.fromName || this.config.defaultFrom.name,

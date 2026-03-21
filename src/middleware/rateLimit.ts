@@ -30,10 +30,11 @@ import { RateLimitError } from '../types';
  * - Cached counters with async background updates
  * - Strong consistency guarantees
  * 
+ * @param request - The incoming Request object
  * @param env - Cloudflare Worker environment bindings
  * @throws {RateLimitError} When rate limit is exceeded, with retryAfter in seconds
  */
-export async function checkRateLimit(env: Env): Promise<void> {
+export async function checkRateLimit(request: Request, env: Env): Promise<void> {
   const now = Date.now();
   
   // Check minute limit using native rate limiter

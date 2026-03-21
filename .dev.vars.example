@@ -1,0 +1,17 @@
+# Local secrets for wrangler dev.
+# Format: KEY=VALUE
+
+# API Key for authentication (must match your test script)
+API_KEY=your_development_secret_key
+
+# AWS SES credentials - required for sending emails
+AWS_ACCESS_KEY_ID=your_aws_access_key_id
+AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+AWS_REGION=ap-south-1
+
+# Default from address (must be a verified identity in SES)
+DEFAULT_FROM_EMAIL=noreply@rareminds.in
+DEFAULT_FROM_NAME=Skill Passport Team
+
+# Optional: SES Configuration Set
+# SES_CONFIGURATION_SET=default

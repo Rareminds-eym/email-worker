@@ -167,7 +167,7 @@ export function validateSendEmailRequest(body: any): SendEmailRequest {
   // (potentially plain strings) were forwarded to SES, causing:
   //   HTTP 400 from SES: "Expected list or null"
   //   Surfaced to caller as: HTTP 500 PROVIDER_ERROR
-  const ccList  = cc  ? validateEmailList(cc)  : undefined;
+  const ccList = cc ? validateEmailList(cc) : undefined;
   const bccList = bcc ? validateEmailList(bcc) : undefined;
 
   // --- Size / length checks (checked after email validation to avoid
@@ -229,6 +229,13 @@ export function validateSendEmailRequest(body: any): SendEmailRequest {
       `HTML content too large. Maximum ${VALIDATION.MAX_HTML_SIZE} bytes allowed`,
       { maxSize: VALIDATION.MAX_HTML_SIZE, provided: html.length }
     );
+  }
+
+  if (metadata) {
+    const metaStr = JSON.stringify(metadata);
+    if (metaStr.length > 4096) {
+      throw new ValidationError('metadata exceeds maximum size of 4KB');
+    }
   }
 
   // Return the fully validated and normalised request object.

@@ -47,23 +47,18 @@ export async function handleDetailedHealth(
     version: VERSION,
     checks,
   };
-  
+
   return Response.json(response, { status: httpStatus });
 }
 
 async function checkAWSCredentials(env: Env): Promise<{ status: 'ok' | 'error'; message?: string }> {
   try {
     if (!env.AWS_ACCESS_KEY_ID || !env.AWS_SECRET_ACCESS_KEY || !env.AWS_REGION) {
-      return { status: 'error', message: 'Missing AWS credentials' };
+      return { status: 'error' };
     }
-    
-    if (env.AWS_ACCESS_KEY_ID.length < 16 || env.AWS_SECRET_ACCESS_KEY.length < 20) {
-      return { status: 'error', message: 'Invalid AWS credential format' };
-    }
-    
     return { status: 'ok' };
   } catch (error) {
-    return { status: 'error', message: 'AWS credential check failed' };
+    return { status: 'error' };
   }
 }
 
@@ -181,11 +176,10 @@ async function checkKVStore(env: Env): Promise<{ status: 'ok' | 'error'; message
 async function checkRateLimiter(env: Env): Promise<{ status: 'ok' | 'error'; message?: string }> {
   try {
     if (!env.RATE_LIMITER_MINUTE) {
-      return { status: 'error', message: 'Rate limiter not bound' };
+      return { status: 'error' };
     }
-    
     return { status: 'ok' };
   } catch (error) {
-    return { status: 'error', message: 'Rate limiter check failed' };
+    return { status: 'error' };
   }
 }

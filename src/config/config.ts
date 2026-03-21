@@ -14,11 +14,16 @@ export function getEmailConfig(env: Env): EmailConfig {
     }
   }
 
+  if (!env.DEFAULT_FROM_EMAIL || !env.DEFAULT_FROM_NAME) {
+    throw new Error('Missing required: DEFAULT_FROM_EMAIL, DEFAULT_FROM_NAME');
+  }
+
   return {
     aws: {
       accessKeyId: env.AWS_ACCESS_KEY_ID,
       secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
       region: env.AWS_REGION,
+      configurationSet: (env as any).SES_CONFIGURATION_SET,
     },
     defaultFrom: {
       email: env.DEFAULT_FROM_EMAIL || 'noreply@rareminds.in',

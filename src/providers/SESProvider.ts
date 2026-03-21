@@ -2,14 +2,16 @@
  * AWS SES email provider
  */
 
+import { Buffer } from 'node:buffer';
 import { AwsClient } from 'aws4fetch';
-import type { EmailMessage, ProviderResponse, EmailConfig } from '../types';
+import { EmailMessage, ProviderResponse, ProviderError, EmailConfig } from '../types';
 import { BaseProvider } from './BaseProvider';
+import { TIMEOUTS } from '../constants';
 
 export class SESProvider extends BaseProvider {
   readonly type = 'ses';
   private aws: AwsClient;
-  
+
   constructor(private config: EmailConfig) {
     super();
     // 'service' must be set explicitly — aws4fetch infers 'email' from the
@@ -21,11 +23,11 @@ export class SESProvider extends BaseProvider {
       service: 'ses',
     });
   }
-  
+
   async send(message: EmailMessage): Promise<ProviderResponse> {
     try {
       const sesEndpoint = `https://email.${this.config.aws.region}.amazonaws.com/v2/email/outbound-emails`;
-      
+
       // Build raw email with Message-ID header
       const rawEmail = this.buildRawEmail(message);
       
@@ -46,28 +48,32 @@ export class SESProvider extends BaseProvider {
             BccAddresses: message.bcc || [],
           },
           FromEmailAddress: message.from.email,
+          ...(this.config.aws.configurationSet ? { ConfigurationSetName: this.config.aws.configurationSet } : {}),
           Content: {
             Raw: {
               Data: base64,
             },
           },
         }),
+        signal: AbortSignal.timeout(TIMEOUTS.EMAIL_SEND),
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`SES API error: ${response.status} ${response.statusText} - ${errorText}`);
+        // ProviderError signature: (message, shouldRetry, code, statusCode, details)
+        const isTemporary = response.status === 429 || response.status >= 500;
+        throw new ProviderError(`SES API error: ${response.statusText} - ${errorText}`, isTemporary, 'PROVIDER_API_ERROR', response.status);
       }
-      
+
       const result = await response.json() as { MessageId: string };
-      
+
       return {
         success: true,
         messageId: result.MessageId,
       };
     } catch (error: any) {
       const errorType = this.classifyError(error);
-      
+
       return {
         success: false,
         error: error.message,
@@ -76,9 +82,17 @@ export class SESProvider extends BaseProvider {
       };
     }
   }
-  
+
   async testConnection(): Promise<boolean> {
-    return true;
+    try {
+      const response = await this.aws.fetch(`https://email.${this.config.aws.region}.amazonaws.com/v2/email/account`, {
+        method: 'GET',
+        signal: (globalThis as any).AbortSignal.timeout(TIMEOUTS.SMTP_CONNECTION),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -142,7 +156,7 @@ export class SESProvider extends BaseProvider {
   }
 
   private sanitizeHeader(value: string): string {
-    return value.replace(/[\r\n]/g, '');
+    return value.replace(/[\r\n,<>]/g, '');
   }
 
   /**
@@ -406,14 +420,14 @@ export class SESProvider extends BaseProvider {
   }
 
   private buildRawEmail(message: EmailMessage): string {
-    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+    const boundary = `----=_Part_${crypto.randomUUID()}`;
     const date = new Date().toUTCString();
-    
+
     const fromName = this.formatDisplayName(message.from.name);
     const fromEmail = this.sanitizeHeader(message.from.email);
     const subject = this.encodeRFC2047(message.subject);
     const toAddresses = message.to.map(addr => this.sanitizeHeader(addr));
-    
+
     // Build headers
     const headers: string[] = [
       `From: ${fromName} <${fromEmail}>`,
@@ -423,7 +437,7 @@ export class SESProvider extends BaseProvider {
       `MIME-Version: 1.0`,
       `Content-Type: multipart/alternative; boundary="${boundary}"`,
     ];
-    
+
     // Add Message-ID if present
     // 
     // RFC 5322 §3.6.4 Message-ID Specification:
@@ -482,7 +496,7 @@ export class SESProvider extends BaseProvider {
       const validatedMessageId = this.validateMessageId(message.messageId);
       headers.push(`Message-ID: ${validatedMessageId}`);
     }
-    
+
     // Add optional headers
     // 
     // Reply-To header format per RFC 5322 §3.6.2:
@@ -520,33 +534,35 @@ export class SESProvider extends BaseProvider {
       // The email address must remain in plain ASCII per RFC 5322
       headers.push(`Reply-To: ${this.sanitizeHeader(message.replyTo)}`);
     }
-    
+
     if (message.cc && message.cc.length > 0) {
       const ccAddresses = message.cc.map(addr => this.sanitizeHeader(addr));
       headers.push(`Cc: ${ccAddresses.join(', ')}`);
     }
-    
+
     // Build body parts
-    const textPart = message.text || message.html.replace(/<[^>]*>/g, '');
-    
+    // Note: This naive regex fallback is fragile against deeply nested HTML.
+    // Callers should strongly supplement complex marketing emails with the explicit `text` field.
+    const textPart = message.text || message.html.replace(/<(style|script)[^>]*>[\s\S]*?<\/\1>/gi, '').replace(/<[^>]*>/g, '').trim();
+
     const parts: string[] = [
       headers.join('\r\n'),
       '',
       `--${boundary}`,
       `Content-Type: text/plain; charset=UTF-8`,
-      `Content-Transfer-Encoding: 8bit`,
+      `Content-Transfer-Encoding: base64`,
       '',
-      textPart,
+      Buffer.from(textPart).toString('base64'),
       '',
       `--${boundary}`,
       `Content-Type: text/html; charset=UTF-8`,
-      `Content-Transfer-Encoding: 8bit`,
+      `Content-Transfer-Encoding: base64`,
       '',
-      message.html,
+      Buffer.from(message.html).toString('base64'),
       '',
       `--${boundary}--`,
     ];
-    
+
     return parts.join('\r\n');
   }
 }

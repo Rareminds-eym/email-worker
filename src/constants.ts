@@ -13,13 +13,13 @@ export const RATE_LIMITS = {
 
 export const TIMEOUTS = {
   SMTP_CONNECTION: 10000, // 10 seconds
-  EMAIL_SEND: 30000, // 30 seconds
+  EMAIL_SEND: 8000, // 8 seconds, prevents 3 retries from busting CF 30s limits
 } as const;
 
 export const RETRY = {
   MAX_ATTEMPTS: 3,
-  INITIAL_DELAY_MS: 1000,
-  MAX_DELAY_MS: 10000,
+  INITIAL_DELAY_MS: 500,
+  MAX_DELAY_MS: 3000, // Hard ceiling prevents hanging socket waits
   BACKOFF_MULTIPLIER: 2,
 } as const;
 
@@ -150,7 +150,7 @@ export function getCorsHeaders(request: Request, env?: { ENVIRONMENT?: string })
   const origin = request.headers.get('Origin');
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Internal-Api-Key, X-API-Key',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Internal-Api-Key, X-API-Key',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin',
   };
@@ -159,15 +159,19 @@ export function getCorsHeaders(request: Request, env?: { ENVIRONMENT?: string })
   if (origin) {
     const isLocalhost = origin.startsWith('http://localhost:');
     const isProduction = env?.ENVIRONMENT === 'production';
-    
+
     // In production, block localhost origins
     if (isProduction && isLocalhost) {
       // Don't set Access-Control-Allow-Origin - browser will block
       return headers;
     }
-    
-    // Check if origin is in allowlist
-    if (ALLOWED_ORIGINS.includes(origin as any)) {
+
+    // Check if origin is in allowlist or dynamic env list
+    const envOrigins = (env as any)?.ALLOWED_ORIGINS
+      ? (env as any).ALLOWED_ORIGINS.split(',').map((s: string) => s.trim())
+      : [];
+
+    if (ALLOWED_ORIGINS.includes(origin as any) || envOrigins.includes(origin)) {
       headers['Access-Control-Allow-Origin'] = origin;
     }
   }
@@ -183,4 +187,4 @@ export const ERROR_CODES = {
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;
 
-export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
