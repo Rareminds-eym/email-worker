@@ -238,23 +238,59 @@ export class SESProvider extends BaseProvider {
    * @throws Error if Message-ID violates RFC 5322 or contains injection attempts
    */
   private validateMessageId(messageId: string): string {
-    // Step 1: Strip CRLF characters (security - prevent header injection)
-    const sanitized = messageId.replace(/[\r\n]/g, '');
+    // Step 1: Reject control characters (security - prevent header injection)
+    // 
+    // SECURITY: We REJECT rather than sanitize per OWASP best practices:
+    //   - Fail-fast: Invalid input should be rejected immediately with clear errors
+    //   - Audit trail: Rejection alerts developers/security teams to potential attacks
+    //   - No silent modification: Sanitizing masks bugs and attack attempts
+    //   - Defense in depth: All control characters (0x00-0x1F, 0x7F) are invalid
+    // 
+    // Control characters include:
+    //   - CR (\r, 0x0D) and LF (\n, 0x0A): Enable header injection attacks
+    //   - TAB (\t, 0x09): Breaks RFC 5322 msg-id syntax
+    //   - NULL (0x00): Can truncate strings in some systems
+    //   - Other control chars: Not allowed in RFC 5322 msg-id production
+    // 
+    // Attack example: "id@domain\r\nBcc: attacker@evil.com"
+    //   - If sanitized: Becomes "id@domainBcc: attacker@evil.com" (confusing)
+    //   - If rejected: Clear error, security team alerted, attack prevented
+    // 
+    // References:
+    //   - OWASP Input Validation: "reject what does not conform"
+    //   - RFC 5322 §3.6.4: msg-id uses dot-atom-text (no control chars)
+    //   - Security best practice: Fail-fast on invalid input
+    if (/[\x00-\x1F\x7F]/.test(messageId)) {
+      // Escape control characters for visibility in error messages and logs
+      const escaped = messageId
+        .replace(/\r/g, '\\r')
+        .replace(/\n/g, '\\n')
+        .replace(/\t/g, '\\t')
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, (char) => {
+          return `\\x${char.charCodeAt(0).toString(16).padStart(2, '0').toUpperCase()}`;
+        });
+      
+      throw new Error(
+        `Invalid Message-ID format: must not contain control characters (potential header injection attack). ` +
+        `Control characters include CR, LF, TAB, NULL, and others (ASCII 0x00-0x1F, 0x7F). ` +
+        `Got: "${escaped}"`
+      );
+    }
     
     // Step 2: Extract content from angle brackets if present
     // If input is "<id@domain>", extract "id@domain"
     // If input is "id@domain", use as-is
     let idContent: string;
-    if (sanitized.startsWith('<') && sanitized.endsWith('>')) {
-      idContent = sanitized.slice(1, -1);
-    } else if (sanitized.startsWith('<') || sanitized.endsWith('>')) {
+    if (messageId.startsWith('<') && messageId.endsWith('>')) {
+      idContent = messageId.slice(1, -1);
+    } else if (messageId.startsWith('<') || messageId.endsWith('>')) {
       // Mismatched angle brackets - invalid format
       throw new Error(
         `Invalid Message-ID format: mismatched angle brackets. ` +
-        `Must be either "<id@domain>" or "id@domain", got: "${sanitized}"`
+        `Must be either "<id@domain>" or "id@domain", got: "${messageId}"`
       );
     } else {
-      idContent = sanitized;
+      idContent = messageId;
     }
     
     // Step 3: Validate no whitespace (spaces, tabs, etc.)
@@ -372,21 +408,30 @@ export class SESProvider extends BaseProvider {
    * - Display names in From/To headers (e.g., "José García" <jose@example.com>)
    * - Any header value containing characters outside printable ASCII (0x20-0x7E)
    * 
-   * STACK OVERFLOW PROTECTION:
-   * While RFC 2047 is typically used for short strings (subject lines, names),
-   * a malicious actor could send a very long subject line (up to 998 chars per RFC 5322).
-   * After UTF-8 encoding, this could exceed 65,536 bytes, causing a stack overflow
-   * with String.fromCharCode(...array).
+   * RFC 2047 COMPLIANCE - 75 CHARACTER LIMIT:
+   * Each encoded-word must not exceed 75 characters including delimiters.
+   * Wrapper "=?UTF-8?B?" (10) + "?=" (2) = 12 chars overhead.
+   * Max base64 payload: 75 - 12 = 63 chars.
+   * Since base64 expands by 4/3, max UTF-8 bytes per chunk: 63 * 3/4 = 47.25 bytes.
+   * We use 45 bytes (encodes to 60 base64 chars) for safety and clean padding.
    * 
-   * SOLUTION: Use a simple loop instead of spread operator for safety.
-   * The performance difference is negligible for typical header sizes (<1KB).
+   * MULTI-BYTE CHARACTER SAFETY:
+   * UTF-8 characters can be 1-4 bytes. We must never split in the middle of a
+   * multi-byte sequence. Solution: build chunks character-by-character, checking
+   * byte length after each addition.
+   * 
+   * MULTIPLE ENCODED-WORDS:
+   * Per RFC 2047 §2 and §6.2, when text exceeds 75 chars, split into multiple
+   * encoded-words separated by a single space. When decoded, the space is ignored
+   * and the words concatenate seamlessly.
    * 
    * References:
-   * - RFC 2047: https://www.ietf.org/rfc/rfc2047.txt
+   * - RFC 2047 §2: https://www.ietf.org/rfc/rfc2047.txt (75 char limit)
+   * - RFC 2047 §6.2: Adjacent encoded-words, whitespace ignored when decoding
    * - RFC 5322 §2.1.1: Header lines should be <998 characters
    * 
    * @param value - Header value to encode (e.g., subject line, display name)
-   * @returns RFC 2047 encoded string or original if all ASCII
+   * @returns RFC 2047 encoded string(s) or original if all ASCII
    */
   private encodeRFC2047(value: string): string {
     const sanitized = this.sanitizeHeader(value);
@@ -396,12 +441,50 @@ export class SESProvider extends BaseProvider {
       return sanitized;
     }
     
-    // Encode non-ASCII characters using RFC 2047 base64 encoding
+    // Split into chunks that respect the 75-character limit per encoded-word
+    const MAX_BYTES_PER_CHUNK = 45; // Encodes to 60 base64 chars + 12 wrapper = 72 < 75
     const encoder = new TextEncoder();
-    const utf8Bytes = encoder.encode(sanitized);
+    const encodedWords: string[] = [];
     
-    // SAFE: Use loop instead of spread operator to avoid stack overflow
-    // Even though headers are typically small, we protect against malicious input
+    let currentChunk = '';
+    let currentBytes = 0;
+    
+    // Build chunks character-by-character to avoid splitting multi-byte sequences
+    for (const char of sanitized) {
+      const charBytes = encoder.encode(char);
+      
+      // If adding this character would exceed the limit, finalize current chunk
+      if (currentBytes + charBytes.length > MAX_BYTES_PER_CHUNK && currentChunk.length > 0) {
+        encodedWords.push(this.encodeChunk(currentChunk));
+        currentChunk = '';
+        currentBytes = 0;
+      }
+      
+      currentChunk += char;
+      currentBytes += charBytes.length;
+    }
+    
+    // Don't forget the last chunk
+    if (currentChunk.length > 0) {
+      encodedWords.push(this.encodeChunk(currentChunk));
+    }
+    
+    // Join multiple encoded-words with a single space (per RFC 2047 §6.2)
+    return encodedWords.join(' ');
+  }
+
+  /**
+   * Encodes a single chunk of text as an RFC 2047 encoded-word.
+   * Helper method for encodeRFC2047 to avoid code duplication.
+   * 
+   * @param chunk - Text chunk to encode (must be ≤45 UTF-8 bytes)
+   * @returns Single RFC 2047 encoded-word
+   */
+  private encodeChunk(chunk: string): string {
+    const encoder = new TextEncoder();
+    const utf8Bytes = encoder.encode(chunk);
+    
+    // Convert UTF-8 bytes to binary string for btoa()
     let binaryString = '';
     for (let i = 0; i < utf8Bytes.length; i++) {
       binaryString += String.fromCharCode(utf8Bytes[i]);
