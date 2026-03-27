@@ -5,13 +5,14 @@
 
 import { Router } from 'itty-router';
 import type { Env } from './types';
-import { EmailWorkerError, AuthenticationError, RateLimitError, ValidationError } from './types';
+import { EmailWorkerError, AuthenticationError, RateLimitError, ValidationError, OTPError } from './types';
 import { getCorsHeaders, VERSION } from './constants';
 import { authenticateRequest } from './middleware/auth';
 import { checkRateLimit } from './middleware/rateLimit';
 import { log, logRequest, logResponse, logError } from './middleware/logger';
 import { handleSend } from './routes/send';
 import { handleHealth, handleInternalHealth } from './routes/health';
+import { handleSendOTP, handleVerifyOTP } from './routes/otp';
 
 const router = Router();
 
@@ -46,10 +47,12 @@ router.get('/health', async (request, env: Env) => {
 
 router.get('/', (request, env: Env) => {
   return Response.json({
-    service: 'Shared Email API',
+    service: 'Shared Email & OTP API',
     version: VERSION,
     endpoints: {
       'POST /send': 'Send email with HTML content',
+      'POST /otp/send': 'Send OTP to phone number',
+      'POST /otp/verify': 'Verify OTP code',
       'GET /health': 'Health check (Public)',
       'GET /internal/health': 'Health check (Detailed)',
     },
@@ -108,7 +111,75 @@ router.get('/internal/health', async (request, env: Env) => {
   return response;
 });
 
+// ==================== OTP ROUTES ====================
 
+router.post('/otp/send', async (request, env: Env) => {
+  const startTime = Date.now();
+  const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
+
+  try {
+    authenticateRequest(request, env);
+    logRequest(request, { requestId });
+
+    const response = await handleSendOTP(request, env);
+
+    Object.entries(getCorsHeaders(request, env)).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+
+    logResponse(request, response, { requestId }, Date.now() - startTime);
+    return response;
+  } catch (error: any) {
+    const isClientError = error instanceof AuthenticationError || error instanceof ValidationError || error instanceof RateLimitError;
+    const logLevel = isClientError ? 'warn' : 'error';
+
+    if (logLevel === 'error') {
+      logError(error, { path: '/otp/send', requestId });
+    } else {
+      log(logLevel, error.message || 'Client request rejected', {
+        error: error.message,
+        path: '/otp/send',
+        requestId
+      });
+    }
+
+    return handleError(error, request, env);
+  }
+});
+
+router.post('/otp/verify', async (request, env: Env) => {
+  const startTime = Date.now();
+  const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
+
+  try {
+    authenticateRequest(request, env);
+    logRequest(request, { requestId });
+
+    const response = await handleVerifyOTP(request, env);
+
+    Object.entries(getCorsHeaders(request, env)).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+
+    logResponse(request, response, { requestId }, Date.now() - startTime);
+    return response;
+  } catch (error: any) {
+    const isClientError = error instanceof AuthenticationError || error instanceof ValidationError || error instanceof RateLimitError;
+    const logLevel = isClientError ? 'warn' : 'error';
+
+    if (logLevel === 'error') {
+      logError(error, { path: '/otp/verify', requestId });
+    } else {
+      log(logLevel, error.message || 'Client request rejected', {
+        error: error.message,
+        path: '/otp/verify',
+        requestId
+      });
+    }
+
+    return handleError(error, request, env);
+  }
+});
 
 // ==================== 404 HANDLER ====================
 
@@ -149,6 +220,15 @@ function handleError(error: any, request: Request, env?: Env): Response {
   }
 
   if (error instanceof ValidationError) {
+    return Response.json({
+      success: false,
+      error: error.message,
+      errorCode: error.code,
+      details: error.details,
+    }, { status: error.statusCode, headers: corsHeaders });
+  }
+
+  if (error instanceof OTPError) {
     return Response.json({
       success: false,
       error: error.message,

@@ -26,6 +26,12 @@ export interface Env {
   // Default from address
   DEFAULT_FROM_EMAIL: string;
   DEFAULT_FROM_NAME: string;
+
+  // MessageCentral OTP credentials
+  MESSAGECENTRAL_CUSTOMER_ID: string;
+  MESSAGECENTRAL_KEY: string;
+  MESSAGECENTRAL_EMAIL: string;
+  MESSAGECENTRAL_COUNTRY_CODE?: string;
 }
 
 // ==================== CONFIG ====================
@@ -43,7 +49,67 @@ export interface EmailConfig {
   };
 }
 
+// ==================== OTP TYPES ====================
 
+export interface SendOTPRequest {
+  mobileNumber: string;
+  countryCode?: string;
+  flowType?: 'SMS' | 'WHATSAPP' | 'RCS';
+}
+
+export interface SendOTPResponse {
+  success: boolean;
+  verificationId?: string;
+  timeout?: string;
+  message?: string;
+  error?: string;
+  retryAfter?: number;
+}
+
+export interface VerifyOTPRequest {
+  mobileNumber: string;
+  verificationId: string;
+  code: string;
+  countryCode?: string;
+}
+
+export interface VerifyOTPResponse {
+  success: boolean;
+  verified: boolean;
+  message?: string;
+  error?: string;
+  retryAfter?: number;
+}
+
+export interface MessageCentralAuthResponse {
+  responseCode: number;
+  message: string;
+  token?: string;
+}
+
+export interface MessageCentralSendResponse {
+  responseCode: number;
+  message: string;
+  data?: {
+    verificationId: string;
+    mobileNumber: string;
+    responseCode: string;
+    errorMessage: string | null;
+    timeout: string;
+  };
+}
+
+export interface MessageCentralVerifyResponse {
+  responseCode: number;
+  message: string;
+  data?: {
+    verificationId: string;
+    mobileNumber: string;
+    verificationStatus: string;
+    responseCode: string;
+    errorMessage: string | null;
+  };
+}
 
 // ==================== REQUEST/RESPONSE ====================
 
@@ -59,8 +125,6 @@ export interface SendEmailRequest {
   bcc?: string[];
   metadata?: Record<string, any>;
 }
-
-
 
 export interface SendEmailResponse {
   success: boolean;
@@ -167,5 +231,17 @@ export class ProviderError extends EmailWorkerError {
   ) {
     super(message, code, statusCode, details);
     this.name = 'ProviderError';
+  }
+}
+
+export class OTPError extends EmailWorkerError {
+  constructor(
+    message: string,
+    code: string = 'OTP_ERROR',
+    statusCode: number = 400,
+    details?: any
+  ) {
+    super(message, code, statusCode, details);
+    this.name = 'OTPError';
   }
 }
