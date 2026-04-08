@@ -2,6 +2,8 @@
 
 A Cloudflare Worker that provides email sending via AWS SES and phone number OTP verification via MessageCentral. Built with `itty-router` and TypeScript, deployed on Cloudflare's edge network.
 
+> Note: the worker name in `package.json` and `wrangler.toml` is `shared-email-api` (the original name before OTP was added). This is the Cloudflare deployment identifier and does not need to match the display name.
+
 ---
 
 ## Table of Contents
@@ -110,7 +112,7 @@ These are loaded automatically by `wrangler dev`. Never commit this file.
 | `MESSAGECENTRAL_KEY` | Yes (OTP) | Long-lived JWT token from MessageCentral |
 | `MESSAGECENTRAL_EMAIL` | Yes (OTP) | MessageCentral account email |
 | `MESSAGECENTRAL_COUNTRY_CODE` | No | Default country code (defaults to `91`) |
-| `ALLOWED_ORIGINS` | Yes | Comma-separated list of allowed CORS origins (e.g. `http://localhost:5173,http://localhost:8788`) |
+| `ALLOWED_ORIGINS` | Yes | Comma-separated list of allowed CORS origins (e.g. `http://localhost:5173,http://localhost:8788`). Whitespace around each entry is trimmed, empty entries are ignored, and entries without `http://` or `https://` are rejected. If unset, all browser requests are blocked. |
 
 Example `.dev.vars`:
 
@@ -147,7 +149,10 @@ wrangler secret put MESSAGECENTRAL_CUSTOMER_ID
 wrangler secret put MESSAGECENTRAL_KEY
 wrangler secret put MESSAGECENTRAL_EMAIL
 wrangler secret put ALLOWED_ORIGINS
-# Value format: https://app.example.com,https://www.app.example.com
+# Value format — comma-separated, no spaces around commas, must be valid http/https origins:
+#   https://app.example.com,https://www.app.example.com
+# Whitespace is trimmed, empty entries are filtered, non-http(s) entries are ignored.
+# If this secret is not set, all browser-originated requests will be blocked by CORS.
 ```
 
 Verify secrets are set:

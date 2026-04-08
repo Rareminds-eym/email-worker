@@ -28,19 +28,28 @@ export const VALIDATION = {
   MAX_HTML_SIZE: 1024 * 1024, // 1MB
 } as const;
 
+/** Valid HTTP/HTTPS origin pattern — rejects anything that isn't a proper origin */
+const ORIGIN_REGEX = /^https?:\/\/.+/;
+
 /**
  * Get CORS headers driven entirely by the ALLOWED_ORIGINS environment variable.
  *
  * No origins are hardcoded. The full list lives in Cloudflare's secret store
  * (set via `wrangler secret put ALLOWED_ORIGINS`) so it can be updated without
- * a code change or redeploy.
+ * a code change or redeploy. For local dev, set ALLOWED_ORIGINS in .dev.vars.
  *
- * For local dev, set ALLOWED_ORIGINS in your .dev.vars file.
+ * Parsing rules for ALLOWED_ORIGINS:
+ *   - Comma-separated: "https://a.com,https://b.com"
+ *   - Whitespace around each entry is trimmed automatically
+ *   - Empty entries (e.g. trailing comma) are filtered out
+ *   - Entries that don't start with http:// or https:// are silently ignored
+ *   - If ALLOWED_ORIGINS is unset or empty, no origin is ever allowed (all
+ *     browser requests will be blocked by CORS — set the secret before deploy)
  *
  * Behaviour:
  *   - No Origin header (curl, server-to-server) → passes through, no ACAO set.
  *   - ENVIRONMENT === 'production' + localhost origin → always blocked.
- *   - Origin found in ALLOWED_ORIGINS list → ACAO set to that origin.
+ *   - Origin found in validated ALLOWED_ORIGINS list → ACAO set to that origin.
  *   - Origin not in list → ACAO not set, browser blocks the response.
  */
 export function getCorsHeaders(
@@ -62,10 +71,12 @@ export function getCorsHeaders(
     return headers;
   }
 
-  // Parse the secret — single source of truth for allowed origins
-  const allowedOrigins = env?.ALLOWED_ORIGINS
-    ? env.ALLOWED_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
-    : [];
+  // Parse, trim, filter empty entries, and validate each origin is a proper URL.
+  // Malformed entries (no protocol, whitespace-only, etc.) are dropped silently.
+  const allowedOrigins = (env?.ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && ORIGIN_REGEX.test(s));
 
   if (allowedOrigins.includes(origin)) {
     headers['Access-Control-Allow-Origin'] = origin;

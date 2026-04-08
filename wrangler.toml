@@ -34,5 +34,6 @@ AWS_REGION = "ap-south-1"
 # so it never appears in source control and can be updated without a redeploy.
 # To set it:
 #   wrangler secret put ALLOWED_ORIGINS
-# Value format (comma-separated, no spaces):
+# Value format (comma-separated, no spaces around commas):
 #   https://app.example.com,https://www.app.example.com
+# See README.md > Production Secrets for full setup instructions.
