@@ -1,30 +1,7 @@
 name = "shared-email-api"
 main = "src/index.ts"
-compatibility_date = "2026-05-25"
+compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
-
-# ============================================================================
-# LOCAL DEV
-# ============================================================================
-
-[dev]
-port = 9001
-host = "127.0.0.1"
-inspector_port = 9201
-
-# ============================================================================
-# OBSERVABILITY
-# ============================================================================
-
-[observability]
-enabled = true
-
-[observability.logs]
-head_sampling_rate = 1
-
-[observability.traces]
-enabled = true
-head_sampling_rate = 0.01
 
 # ============================================================================
 # BINDINGS
@@ -33,6 +10,7 @@ head_sampling_rate = 0.01
 [[kv_namespaces]]
 binding = "RATE_LIMIT_KV"
 id = "9ce4234505744e7e9e9c01a5c1b0b1b0"
+preview_id = "c45ac18997334201a93ff4b7605bd877"
 
 [[ratelimits]]
 name = "RATE_LIMITER_MINUTE"
@@ -40,19 +18,16 @@ namespace_id = "10030"
 simple = { limit = 20, period = 60 }
 
 # ============================================================================
-# VARIABLES
+# OBSERVABILITY
 # ============================================================================
 
+[observability]
+enabled = true
+
+# ============================================================================
+# VARIABLES
+# ============================================================================
 [vars]
 ENVIRONMENT = "production"
 AWS_REGION = "ap-south-1"
-ALLOWED_ORIGINS = "http://localhost:3000,http://localhost:5173,http://localhost:8788,http://localhost:9001,http://127.0.0.1:8788,http://127.0.0.1:9001,https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in,https://*.rareminds.in,https://*.pages.dev"
-
-# Secrets (set via `wrangler secret put`):
-# EMAIL_API_KEY                  (shared key for authenticating incoming email requests; must match sso-worker's EMAIL_API_KEY)
-# AWS_ACCESS_KEY_ID              (AWS credentials for SES)
-# AWS_SECRET_ACCESS_KEY          (AWS credentials for SES)
-# DEFAULT_FROM_EMAIL             (default sender email address)
-# DEFAULT_FROM_NAME              (default sender name)
-# MESSAGECENTRAL_CUSTOMER_ID     (MessageCentral SMS customer ID)
-# MESSAGECENTRAL_KEY             (MessageCentral SMS API key)
+ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"

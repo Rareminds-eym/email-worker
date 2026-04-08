@@ -3,25 +3,24 @@
 A Cloudflare Worker that provides email sending via AWS SES and phone number OTP verification via MessageCentral. Built with `itty-router` and TypeScript, deployed on Cloudflare's edge network.
 
 > Note: the worker name in `package.json` and `wrangler.toml` is `shared-email-api` (the original name before OTP was added). This is the Cloudflare deployment identifier and does not need to match the display name.
-> 
 
 ---
 
 ## Table of Contents
 
-1. [Prerequisites](https://www.notion.so/35f567f8353980ecb096de1965907113?pvs=21)
-2. [Project Structure](https://www.notion.so/35f567f8353980ecb096de1965907113?pvs=21)
-3. [Local Setup](https://www.notion.so/35f567f8353980ecb096de1965907113?pvs=21)
-4. [Environment Variables](https://www.notion.so/35f567f8353980ecb096de1965907113?pvs=21)
-5. [Cloudflare Resources](https://www.notion.so/35f567f8353980ecb096de1965907113?pvs=21)
-6. [Running Locally](https://www.notion.so/35f567f8353980ecb096de1965907113?pvs=21)
-7. [Deploying to Production](https://www.notion.so/35f567f8353980ecb096de1965907113?pvs=21)
-8. [API Reference](https://www.notion.so/35f567f8353980ecb096de1965907113?pvs=21)
-9. [Authentication](https://www.notion.so/35f567f8353980ecb096de1965907113?pvs=21)
-10. [Rate Limits](https://www.notion.so/35f567f8353980ecb096de1965907113?pvs=21)
-11. [Testing](https://www.notion.so/35f567f8353980ecb096de1965907113?pvs=21)
-12. [Monitoring & Logs](https://www.notion.so/35f567f8353980ecb096de1965907113?pvs=21)
-13. [Error Codes](https://www.notion.so/35f567f8353980ecb096de1965907113?pvs=21)
+1. [Prerequisites](#prerequisites)
+2. [Project Structure](#project-structure)
+3. [Local Setup](#local-setup)
+4. [Environment Variables](#environment-variables)
+5. [Cloudflare Resources](#cloudflare-resources)
+6. [Running Locally](#running-locally)
+7. [Deploying to Production](#deploying-to-production)
+8. [API Reference](#api-reference)
+9. [Authentication](#authentication)
+10. [Rate Limits](#rate-limits)
+11. [Testing](#testing)
+12. [Monitoring & Logs](#monitoring--logs)
+13. [Error Codes](#error-codes)
 
 ---
 
@@ -91,7 +90,7 @@ npm install
 cp .dev.vars.example .dev.vars
 ```
 
-Then open `.dev.vars` and fill in all required values (see [Environment Variables](https://www.notion.so/35f567f8353980ecb096de1965907113?pvs=21) below).
+Then open `.dev.vars` and fill in all required values (see [Environment Variables](#environment-variables) below).
 
 ---
 
@@ -102,7 +101,7 @@ Then open `.dev.vars` and fill in all required values (see [Environment Variable
 These are loaded automatically by `wrangler dev`. Never commit this file.
 
 | Variable | Required | Description |
-| --- | --- | --- |
+|---|---|---|
 | `API_KEY` | Yes | Shared secret for authenticating API requests |
 | `AWS_ACCESS_KEY_ID` | Yes | AWS IAM access key with SES send permissions |
 | `AWS_SECRET_ACCESS_KEY` | Yes | AWS IAM secret key |
@@ -117,7 +116,7 @@ These are loaded automatically by `wrangler dev`. Never commit this file.
 
 Example `.dev.vars`:
 
-```
+```ini
 API_KEY=my_local_dev_secret
 AWS_ACCESS_KEY_ID=YOUR_AWS_ACCESS_KEY_ID_HERE
 AWS_SECRET_ACCESS_KEY=WS_SECRET_ACCESS_KEY_EXAMPLEKEY
@@ -127,7 +126,7 @@ DEFAULT_FROM_NAME=Your App Name
 MESSAGECENTRAL_CUSTOMER_ID=C-XXXXXXXX
 MESSAGECENTRAL_KEY=MESSAGECENTRAL_KEY_HERE
 MESSAGECENTRAL_EMAIL=admin@yourdomain.com
-ALLOWED_ORIGINS=http://localhost:5173,<http://localhost:8788>
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:8788
 ```
 
 ### Production Secrets
@@ -229,7 +228,7 @@ npm run tail
 
 ## API Reference
 
-All authenticated endpoints require an API key (see [Authentication](https://www.notion.so/35f567f8353980ecb096de1965907113?pvs=21)).
+All authenticated endpoints require an API key (see [Authentication](#authentication)).
 
 ### `GET /`
 
@@ -242,7 +241,6 @@ Returns service info and available endpoints. No authentication required.
 Public health check.
 
 **Response:**
-
 ```json
 {
   "status": "healthy",
@@ -258,7 +256,6 @@ Public health check.
 Detailed health check including AWS credentials, KV store, and rate limiter status. Requires authentication.
 
 **Response:**
-
 ```json
 {
   "status": "healthy",
@@ -279,7 +276,6 @@ Detailed health check including AWS credentials, KV store, and rate limiter stat
 Send an email via AWS SES.
 
 **Headers:**
-
 ```
 Content-Type: application/json
 X-Internal-Api-Key: <your-api-key>
@@ -288,7 +284,7 @@ X-Internal-Api-Key: <your-api-key>
 **Request body:**
 
 | Field | Type | Required | Description |
-| --- | --- | --- | --- |
+|---|---|---|---|
 | `to` | `string \| string[]` | Yes | Recipient email(s), max 50 |
 | `subject` | `string` | Yes | Email subject, max 998 chars |
 | `html` | `string` | Yes | HTML body, max 1MB |
@@ -301,15 +297,13 @@ X-Internal-Api-Key: <your-api-key>
 | `metadata` | `object` | No | Arbitrary metadata for logging (max 4KB, not sent to SES) |
 
 **Optional header:**
-
 - `Idempotency-Key: <unique-key>` — Prevents duplicate sends. Cached for 24 hours.
 
 **Example:**
-
 ```bash
-curl -X POST <https://your-worker.workers.dev/send> \\
-  -H "Content-Type: application/json" \\
-  -H "X-Internal-Api-Key: your-api-key" \\
+curl -X POST https://your-worker.workers.dev/send \
+  -H "Content-Type: application/json" \
+  -H "X-Internal-Api-Key: your-api-key" \
   -d '{
     "to": "user@example.com",
     "subject": "Welcome",
@@ -319,7 +313,6 @@ curl -X POST <https://your-worker.workers.dev/send> \\
 ```
 
 **Success response (200):**
-
 ```json
 {
   "success": true,
@@ -339,17 +332,16 @@ Send an OTP to a phone number via SMS, WhatsApp, or RCS.
 **Request body:**
 
 | Field | Type | Required | Description |
-| --- | --- | --- | --- |
+|---|---|---|---|
 | `mobileNumber` | `string` | Yes | Phone number without country code |
 | `countryCode` | `string` | No | Country code digits (default: `91`) |
 | `flowType` | `string` | No | `SMS`, `WHATSAPP`, or `RCS` (default: `SMS`) |
 
 **Example:**
-
 ```bash
-curl -X POST <https://your-worker.workers.dev/otp/send> \\
-  -H "Content-Type: application/json" \\
-  -H "X-Internal-Api-Key: your-api-key" \\
+curl -X POST https://your-worker.workers.dev/otp/send \
+  -H "Content-Type: application/json" \
+  -H "X-Internal-Api-Key: your-api-key" \
   -d '{
     "mobileNumber": "9876543210",
     "countryCode": "91",
@@ -358,7 +350,6 @@ curl -X POST <https://your-worker.workers.dev/otp/send> \\
 ```
 
 **Success response (200):**
-
 ```json
 {
   "success": true,
@@ -377,18 +368,17 @@ Verify an OTP code.
 **Request body:**
 
 | Field | Type | Required | Description |
-| --- | --- | --- | --- |
+|---|---|---|---|
 | `mobileNumber` | `string` | Yes | Same number used in `/otp/send` |
 | `verificationId` | `string` | Yes | ID returned from `/otp/send` |
 | `code` | `string` | Yes | 4–6 digit OTP code |
 | `countryCode` | `string` | No | Country code (default: `91`) |
 
 **Example:**
-
 ```bash
-curl -X POST <https://your-worker.workers.dev/otp/verify> \\
-  -H "Content-Type: application/json" \\
-  -H "X-Internal-Api-Key: your-api-key" \\
+curl -X POST https://your-worker.workers.dev/otp/verify \
+  -H "Content-Type: application/json" \
+  -H "X-Internal-Api-Key: your-api-key" \
   -d '{
     "mobileNumber": "9876543210",
     "verificationId": "VER123456",
@@ -398,7 +388,6 @@ curl -X POST <https://your-worker.workers.dev/otp/verify> \\
 ```
 
 **Success response (200):**
-
 ```json
 {
   "success": true,
@@ -430,7 +419,7 @@ Missing or invalid keys return HTTP `401`.
 Three-tier enforcement per API key:
 
 | Window | Limit |
-| --- | --- |
+|---|---|
 | Per minute | 20 requests (Cloudflare native rate limiter) |
 | Per hour | 500 requests (KV-based) |
 | Per day | 5,000 requests (KV-based) |
@@ -440,7 +429,7 @@ Exceeded limits return HTTP `429` with a `Retry-After` header.
 ### OTP (in-memory, per worker instance)
 
 | Endpoint | Limit |
-| --- | --- |
+|---|---|
 | `POST /otp/send` | 3 requests per minute per phone number |
 | `POST /otp/verify` | 5 attempts per minute per verification ID |
 
@@ -491,7 +480,7 @@ All logs are emitted as structured JSON. Key fields: `timestamp`, `level`, `mess
 ## Error Codes
 
 | Code | HTTP Status | Description |
-| --- | --- | --- |
+|---|---|---|
 | `AUTH_ERROR` | 401 | Missing or invalid API key |
 | `RATE_LIMIT_ERROR` | 429 | Rate limit exceeded |
 | `VALIDATION_ERROR` | 400 | Invalid request body or parameters |
