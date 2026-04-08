@@ -1,97 +1,255 @@
-# Shared Email API Worker 📧
+# Shared Email & OTP API
 
-A high-performance, industrial-grade Cloudflare Worker providing a highly available email sending API via AWS SES v2.
+Enterprise-grade Cloudflare Worker for email sending (AWS SES) and phone number verification (MessageCentral OTP).
 
-This repository enforces a strict, purely stateless architecture utilizing Cloudflare's V8 Isolates and Native Rate Limiter hooks designed to maintain microsecond latency under heavy concurrent loads.
+## Features
 
-## 🚀 Features
-- **AWS SES v2 & `aws4fetch`**: Fully native HMAC-SHA256 signature alignment.
-- **Single-Worker Topology**: A consolidated `wrangler.toml` configuration preventing dashboard fragmentation.
-- **Hardware Timeouts & Fail-safes**: Integrated `AbortSignal.timeout` ceilings and universal `try...catch` failsafes returning deterministic JSON unconditionally.
-- **Tenant Rate Isolation**: Three-tier limits (20/min via Native Limiter, 500/hr, 5000/day via KV), explicitly scoped to individual API keys.
-- **Security Defenses**:
-  - `Content-Length` hardcapped at 2MB.
-  - Comma-injection prevention in all SMTP headers.
-  - JSON parse bombs explicitly mapped to `400 ValidationError`.
-- **Global CORS & Tracing**: Every response is stamped with `X-Request-Id` reflecting Cloudflare's internal `cf-ray` metrics.
-- **Idempotency Locks**: Network drops are resolved seamlessly using an `Idempotency-Key` tracking system across a 24-hour TTL window.
+### Email Service
+- AWS SES integration for reliable email delivery
+- HTML and plain text email support
+- CC/BCC support
+- Custom reply-to addresses
+- Rate limiting and authentication
 
-## 📦 Deployment Strategy
+### OTP Service
+- SMS, WhatsApp, and RCS OTP delivery
+- Phone number validation and sanitization
+- Rate limiting (3 sends per minute, 5 verifications per minute)
+- Token caching for optimal performance
+- Comprehensive error handling
 
-Deployment is managed universally for the `shared-email-api` instance.
+## API Endpoints
 
-### 1. Provision KV Namespaces (First Time Only)
-Create the KV namespace and rate-limiter bindings and attach their identifiers to your `wrangler.toml`:
+### Email
+
+#### POST /send
+Send an email via AWS SES.
+
 ```bash
-npm run kv:create
+curl -X POST https://your-worker.workers.dev/send \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "recipient@example.com",
+    "subject": "Test Email",
+    "html": "<h1>Hello World</h1>",
+    "text": "Hello World"
+  }'
 ```
 
-### 2. Configure Secrets
-Run the interactive setup script to vault your AWS credentials without leaking them to bash history:
+### OTP
+
+#### POST /otp/send
+Send OTP to a phone number.
+
 ```bash
-npm run secrets:setup
+curl -X POST https://your-worker.workers.dev/otp/send \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mobileNumber": "9876543210",
+    "countryCode": "91",
+    "flowType": "SMS"
+  }'
 ```
 
-Alternatively, you can set individual secrets manually using Wrangler:
-```bash
-npx wrangler secret put API_KEY
-npx wrangler secret put AWS_ACCESS_KEY_ID
-npx wrangler secret put AWS_SECRET_ACCESS_KEY
-npx wrangler secret put DEFAULT_FROM_EMAIL
-npx wrangler secret put DEFAULT_FROM_NAME
+Response:
+```json
+{
+  "success": true,
+  "verificationId": "VER123456",
+  "timeout": "60",
+  "message": "OTP sent successfully"
+}
 ```
 
-### 3. Local Development
-For local development, secrets should be stored in a `.dev.vars` file (this file is gitignored). Use the provided template to get started:
+#### POST /otp/verify
+Verify OTP code.
+
+```bash
+curl -X POST https://your-worker.workers.dev/otp/verify \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mobileNumber": "9876543210",
+    "verificationId": "VER123456",
+    "code": "123456",
+    "countryCode": "91"
+  }'
+```
+
+Response:
+```json
+{
+  "success": true,
+  "verified": true,
+  "message": "Phone number verified successfully"
+}
+```
+
+### Health Checks
+
+#### GET /health
+Public health check endpoint.
+
+#### GET /internal/health
+Detailed health check (requires authentication).
+
+## Setup
+
+### 1. Install Dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure Environment Variables
+
+Copy `.dev.vars.example` to `.dev.vars` and fill in your credentials:
+
 ```bash
 cp .dev.vars.example .dev.vars
 ```
-Then edit `.dev.vars` with your local development credentials.
+
+Required variables:
+- `API_KEY` - Your API authentication key
+- `AWS_ACCESS_KEY_ID` - AWS access key for SES
+- `AWS_SECRET_ACCESS_KEY` - AWS secret key for SES
+- `AWS_REGION` - AWS region (e.g., us-east-1)
+- `DEFAULT_FROM_EMAIL` - Default sender email
+- `DEFAULT_FROM_NAME` - Default sender name
+- `MESSAGECENTRAL_CUSTOMER_ID` - MessageCentral customer ID
+- `MESSAGECENTRAL_KEY` - MessageCentral API key (base64 encoded)
+- `MESSAGECENTRAL_EMAIL` - MessageCentral account email
+
+### 3. Configure Cloudflare Resources
+
+Update `wrangler.toml` with your KV namespace IDs:
+
+```toml
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "your-kv-namespace-id"
+```
 
 ### 4. Deploy
-Launch the unified instance to Cloudflare:
+
+```bash
+# Development
+npm run dev
+
+# Production
+npm run deploy
+```
+
+## Architecture
+
+### Directory Structure
+
+```
+src/
+├── config/          # Configuration management
+├── core/            # Core email engine
+├── middleware/      # Authentication, validation, rate limiting
+├── providers/       # Email provider implementations (SES)
+├── routes/          # API route handlers
+├── services/        # External service integrations (MessageCentral)
+├── types.ts         # TypeScript type definitions
+├── constants.ts     # Application constants
+└── index.ts         # Main worker entry point
+```
+
+### Key Components
+
+1. **MessageCentralService** - Handles OTP operations with token caching
+2. **OTP Validators** - Input validation and sanitization
+3. **OTP Rate Limiter** - Prevents abuse with per-phone-number limits
+4. **Error Handling** - Comprehensive error types and responses
+
+## Security Features
+
+- API key authentication on all endpoints
+- CORS protection with configurable origins
+- Rate limiting per phone number
+- Input validation and sanitization
+- Secure credential storage in Cloudflare secrets
+- Error masking (no internal details exposed)
+
+## Rate Limits
+
+### OTP Operations
+- Send OTP: 3 requests per minute per phone number
+- Verify OTP: 5 attempts per minute per verification ID
+
+### Email Operations
+- Configurable via Cloudflare Rate Limiting
+
+## Error Codes
+
+### OTP Errors
+- `INVALID_REQUEST` - Invalid phone number or parameters
+- `OTP_ALREADY_SENT` - OTP already sent, wait before retry
+- `RATE_LIMIT_EXCEEDED` - Too many requests
+- `INVALID_OTP` - Wrong OTP code
+- `OTP_EXPIRED` - OTP has expired
+- `ALREADY_VERIFIED` - Phone already verified
+- `CONFIG_ERROR` - Service configuration issue
+
+## Testing
+
+```bash
+# Run all tests
+npm test
+
+# Run with coverage
+npm run test:coverage
+
+# Run specific test file
+npm test MessageCentralService.test.ts
+```
+
+## Development
+
+```bash
+# Start development server
+npm run dev
+
+# Type checking
+npm run typecheck
+
+# Linting
+npm run lint
+```
+
+## Production Deployment
+
+1. Set production secrets in Cloudflare dashboard or via CLI:
+
+```bash
+wrangler secret put API_KEY
+wrangler secret put AWS_ACCESS_KEY_ID
+wrangler secret put AWS_SECRET_ACCESS_KEY
+wrangler secret put MESSAGECENTRAL_CUSTOMER_ID
+wrangler secret put MESSAGECENTRAL_KEY
+wrangler secret put MESSAGECENTRAL_EMAIL
+```
+
+2. Deploy:
+
 ```bash
 npm run deploy
 ```
 
-## 🔌 API Usage
+## Monitoring
 
-The API rejects unauthenticated requests. You must include your API Key via the standard `Authorization: Bearer <key>`, `X-API-Key`, or `X-Internal-Api-Key` headers.
+- Check logs: `wrangler tail`
+- Monitor rate limits in Cloudflare dashboard
+- Track OTP success/failure rates via logs
 
-### `POST /send`
+## Support
 
-```json
-{
-  "to": ["user@example.com"],
-  "subject": "Welcome to Skill Passport!",
-  "html": "<h1>Welcome</h1><p>We are glad to have you.</p>",
-  "text": "Fallback text for terminal clients", // heavily recommended!
-  "from": "onboarding@rareminds.in",
-  "fromName": "Skill Passport Team",
-  "replyTo": "support@rareminds.in"
-}
-```
+For issues or questions, please check the documentation or contact support.
 
-#### Safe Retry Pattern (Idempotency)
-Provide an `Idempotency-Key` UUID. If your network connection drops while AWS processes the email, a subsequent retry will return `200 OK` from the KV Cache instead of double-sending the email to the user.
-```bash
-curl -X POST https://api.yourdomain.com/send \
-  -H "Content-Type: application/json" \
-  -H "X-Internal-Api-Key: your_super_secret_key" \
-  -H "Idempotency-Key: e49a3-5c2b-45... " \
-  -d '{"to": "test@example.com", "subject": "Test", "html": "<p>Hello</p>"}'
-```
+## License
 
-### `GET /health`
-A public diagnostic probe endpoint that returns a flat `{ "status": "ok" }`. 
-
-### `GET /internal/health`
-An authenticated endpoint that maps out the live topology of internal Worker systems:
-- Pings the AWS SES `GetAccount` APIs.
-- Queries `RATE_LIMIT_KV` accessibility.
-- Validates the structural integrity of Cloudflare Native limiters.
-
-## 🛠 Internal Architecture Notes
-- **O(1) Memory Engine:** String concatenation in V8 limits scalable throughput. This system binds raw `node:buffer` structs natively via the `nodejs_compat` boundary to parse base64 payloads iteratively.
-- **Engine Isolates:** The `EmailEngine` caches per-isolate but checks strict rotational hashes of your AWS keys before execution.
-- **503 Degradation:** Any AWS degradation prompts the worker to intercept the drop, classify the HTTP Status, and return a clean `503 Service Unavailable` with a `Retry-After: 30` header back to your triggering microservices.
+Proprietary - All rights reserved
