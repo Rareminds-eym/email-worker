@@ -112,7 +112,7 @@ These are loaded automatically by `wrangler dev`. Never commit this file.
 | `MESSAGECENTRAL_KEY` | Yes (OTP) | Long-lived JWT token from MessageCentral |
 | `MESSAGECENTRAL_EMAIL` | Yes (OTP) | MessageCentral account email |
 | `MESSAGECENTRAL_COUNTRY_CODE` | No | Default country code (defaults to `91`) |
-| `ALLOWED_ORIGINS` | Yes | Comma-separated list of allowed CORS origins (e.g. `http://localhost:5173,http://localhost:8788`). Whitespace around each entry is trimmed, empty entries are ignored, and entries without `http://` or `https://` are rejected. If unset, all browser requests are blocked. |
+| `ALLOWED_ORIGINS` | Yes | Comma-separated list of allowed CORS origins. Set in `wrangler.toml` `[vars]` — update the value there to add or remove domains. Whitespace is trimmed, empty entries are ignored, entries without `http://` or `https://` are rejected. |
 
 Example `.dev.vars`:
 
@@ -148,16 +148,6 @@ wrangler secret put DEFAULT_FROM_NAME
 wrangler secret put MESSAGECENTRAL_CUSTOMER_ID
 wrangler secret put MESSAGECENTRAL_KEY
 wrangler secret put MESSAGECENTRAL_EMAIL
-wrangler secret put ALLOWED_ORIGINS
-# Value format — comma-separated, no spaces around commas, must be valid http/https origins:
-#   https://app.example.com,https://www.app.example.com
-# Whitespace is trimmed, empty entries are filtered, non-http(s) entries are silently ignored.
-# If this secret is not set, all browser-originated requests will be blocked by CORS.
-
-# Migration note — if you previously relied on the hardcoded origin list, set this secret
-# with those values before deploying:
-#   wrangler secret put ALLOWED_ORIGINS
-#   > https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in
 ```
 
 Verify secrets are set:
@@ -445,9 +435,9 @@ Exceeded limits return HTTP `429` with a `Retry-After` header.
 
 ### CORS
 
-Allowed origins are controlled entirely by the `ALLOWED_ORIGINS` secret — no origins are hardcoded in the codebase. Set it via `wrangler secret put ALLOWED_ORIGINS` for production, or in `.dev.vars` for local dev. In production, localhost origins are always blocked regardless of the value.
+Allowed origins are controlled by the `ALLOWED_ORIGINS` variable in `wrangler.toml` under `[vars]`. To add or remove a domain, update that value and redeploy — no secrets setup needed. In production, localhost origins are always blocked regardless of the value.
 
-Invalid entries in `ALLOWED_ORIGINS` (missing protocol, typos, extra whitespace) are silently ignored — they will not cause an error but the origin will never be allowed. If you're debugging a CORS issue, verify each entry starts with `http://` or `https://` and matches the exact origin the browser sends (scheme + hostname + port if non-standard). You can confirm what the worker sees by checking `wrangler tail` logs for the `Origin` header on a blocked request.
+Invalid entries (missing protocol, typos, extra whitespace) are silently ignored. If you're debugging a CORS issue, verify each entry starts with `http://` or `https://` and matches the exact origin the browser sends (scheme + hostname + port if non-standard). Use `wrangler tail` to see the `Origin` header on a blocked request.
 
 ---
 
