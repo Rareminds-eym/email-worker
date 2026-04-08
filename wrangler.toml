@@ -30,3 +30,9 @@ enabled = true
 [vars]
 ENVIRONMENT = "production"
 AWS_REGION = "ap-south-1"
+# ALLOWED_ORIGINS is NOT set here — it is stored as a Cloudflare secret
+# so it never appears in source control and can be updated without a redeploy.
+# To set it:
+#   wrangler secret put ALLOWED_ORIGINS
+# Value format (comma-separated, no spaces):
+#   https://app.example.com,https://www.app.example.com
