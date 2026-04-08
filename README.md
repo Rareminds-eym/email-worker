@@ -118,13 +118,13 @@ Example `.dev.vars`:
 
 ```ini
 API_KEY=my_local_dev_secret
-AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
-AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+AWS_ACCESS_KEY_ID=YOUR_AWS_ACCESS_KEY_ID_HERE
+AWS_SECRET_ACCESS_KEY=WS_SECRET_ACCESS_KEY_EXAMPLEKEY
 AWS_REGION=ap-south-1
 DEFAULT_FROM_EMAIL=noreply@yourdomain.com
 DEFAULT_FROM_NAME=Your App Name
 MESSAGECENTRAL_CUSTOMER_ID=C-XXXXXXXX
-MESSAGECENTRAL_KEY=eyJhbGciOiJIUzI1NiJ9...
+MESSAGECENTRAL_KEY=MESSAGECENTRAL_KEY_HERE
 MESSAGECENTRAL_EMAIL=admin@yourdomain.com
 ALLOWED_ORIGINS=http://localhost:5173,http://localhost:8788
 ```
@@ -151,8 +151,13 @@ wrangler secret put MESSAGECENTRAL_EMAIL
 wrangler secret put ALLOWED_ORIGINS
 # Value format — comma-separated, no spaces around commas, must be valid http/https origins:
 #   https://app.example.com,https://www.app.example.com
-# Whitespace is trimmed, empty entries are filtered, non-http(s) entries are ignored.
+# Whitespace is trimmed, empty entries are filtered, non-http(s) entries are silently ignored.
 # If this secret is not set, all browser-originated requests will be blocked by CORS.
+
+# Migration note — if you previously relied on the hardcoded origin list, set this secret
+# with those values before deploying:
+#   wrangler secret put ALLOWED_ORIGINS
+#   > https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in
 ```
 
 Verify secrets are set:
@@ -441,6 +446,8 @@ Exceeded limits return HTTP `429` with a `Retry-After` header.
 ### CORS
 
 Allowed origins are controlled entirely by the `ALLOWED_ORIGINS` secret — no origins are hardcoded in the codebase. Set it via `wrangler secret put ALLOWED_ORIGINS` for production, or in `.dev.vars` for local dev. In production, localhost origins are always blocked regardless of the value.
+
+Invalid entries in `ALLOWED_ORIGINS` (missing protocol, typos, extra whitespace) are silently ignored — they will not cause an error but the origin will never be allowed. If you're debugging a CORS issue, verify each entry starts with `http://` or `https://` and matches the exact origin the browser sends (scheme + hostname + port if non-standard). You can confirm what the worker sees by checking `wrangler tail` logs for the `Origin` header on a blocked request.
 
 ---
 
