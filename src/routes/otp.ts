@@ -40,7 +40,7 @@ export async function handleSendOTP(request: IRequest, env: Env): Promise<Respon
     const validatedFlowType = validateFlowType(flowType);
 
     // Check rate limit
-    await checkOTPRateLimit(validatedPhoneNumber, 'SEND_OTP', env);
+    checkOTPRateLimit(validatedPhoneNumber, 'SEND_OTP');
 
     // Send OTP
     const service = new MessageCentralService(env);
@@ -97,7 +97,7 @@ export async function handleVerifyOTP(request: IRequest, env: Env): Promise<Resp
     validateOTPCode(code);
 
     // Check rate limit (prevent brute force)
-    await checkOTPRateLimit(`${validatedPhoneNumber}_${verificationId}`, 'VERIFY_OTP', env);
+    checkOTPRateLimit(`${validatedPhoneNumber}_${verificationId}`, 'VERIFY_OTP');
 
     // Verify OTP
     const service = new MessageCentralService(env);

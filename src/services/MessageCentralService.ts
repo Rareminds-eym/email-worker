@@ -16,6 +16,7 @@ import type {
 } from '../types';
 import { OTPError } from '../types';
 import { maskPhoneNumber } from '../utils/maskPhone';
+import { log } from '../middleware/logger';
 
 const MESSAGECENTRAL_BASE_URL = 'https://cpaas.messagecentral.com';
 
@@ -296,7 +297,10 @@ export class MessageCentralService {
     // - Browser history (if called from browser)
     // - Proxy/CDN logs
     // This is a limitation of the MessageCentral API design.
-    console.log('[MessageCentral] ⚠️  Security Warning: OTP sent in URL (API limitation)');
+    log('debug', 'Security Warning: OTP sent in URL (API limitation)', {
+      service: 'MessageCentral',
+      endpoint: 'validateOtp'
+    });
 
     try {
       const response = await this.fetchWithTimeout(url, {
