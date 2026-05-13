@@ -135,18 +135,34 @@ export const VALIDATION = {
   MAX_REQUEST_BODY_SIZE: 5 * 1024 * 1024, // 5,242,880 bytes
 } as const;
 
-const ALLOWED_ORIGINS = [
-  'https://skillpassport.rareminds.in',
-  'https://www.skillpassport.rareminds.in',
-  'http://localhost:5173',
-  'http://localhost:8788',
-] as const;
+/** Valid HTTP/HTTPS origin pattern — rejects anything that isn't a proper origin */
+const ORIGIN_REGEX = /^https?:\/\/.+/;
 
 /**
- * Get CORS headers with dynamic origin validation
- * Only returns Access-Control-Allow-Origin for allowed origins
+ * Get CORS headers driven entirely by the ALLOWED_ORIGINS environment variable.
+ *
+ * No origins are hardcoded. The full list lives in Cloudflare's secret store
+ * (set via `wrangler secret put ALLOWED_ORIGINS`) so it can be updated without
+ * a code change or redeploy. For local dev, set ALLOWED_ORIGINS in .dev.vars.
+ *
+ * Parsing rules for ALLOWED_ORIGINS:
+ *   - Comma-separated: "https://a.com,https://b.com"
+ *   - Whitespace around each entry is trimmed automatically
+ *   - Empty entries (e.g. trailing comma) are filtered out
+ *   - Entries that don't start with http:// or https:// are silently ignored
+ *   - If ALLOWED_ORIGINS is unset or empty, no origin is ever allowed (all
+ *     browser requests will be blocked by CORS — set the secret before deploy)
+ *
+ * Behaviour:
+ *   - No Origin header (curl, server-to-server) → passes through, no ACAO set.
+ *   - ENVIRONMENT === 'production' + localhost origin → always blocked.
+ *   - Origin found in validated ALLOWED_ORIGINS list → ACAO set to that origin.
+ *   - Origin not in list → ACAO not set, browser blocks the response.
  */
-export function getCorsHeaders(request: Request, env?: { ENVIRONMENT?: string }): Record<string, string> {
+export function getCorsHeaders(
+  request: Request,
+  env?: { ENVIRONMENT?: string; ALLOWED_ORIGINS?: string }
+): Record<string, string> {
   const origin = request.headers.get('Origin');
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -155,25 +171,22 @@ export function getCorsHeaders(request: Request, env?: { ENVIRONMENT?: string })
     'Vary': 'Origin',
   };
 
-  // Check if origin is allowed
-  if (origin) {
-    const isLocalhost = origin.startsWith('http://localhost:');
-    const isProduction = env?.ENVIRONMENT === 'production';
+  if (!origin) return headers;
 
-    // In production, block localhost origins
-    if (isProduction && isLocalhost) {
-      // Don't set Access-Control-Allow-Origin - browser will block
-      return headers;
-    }
+  // Block localhost in production regardless of ALLOWED_ORIGINS value
+  if (env?.ENVIRONMENT === 'production' && origin.startsWith('http://localhost:')) {
+    return headers;
+  }
 
-    // Check if origin is in allowlist or dynamic env list
-    const envOrigins = (env as any)?.ALLOWED_ORIGINS
-      ? (env as any).ALLOWED_ORIGINS.split(',').map((s: string) => s.trim())
-      : [];
+  // Parse, trim, filter empty entries, and validate each origin is a proper URL.
+  // Malformed entries (no protocol, whitespace-only, etc.) are dropped silently.
+  const allowedOrigins = (env?.ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && ORIGIN_REGEX.test(s));
 
-    if (ALLOWED_ORIGINS.includes(origin as any) || envOrigins.includes(origin)) {
-      headers['Access-Control-Allow-Origin'] = origin;
-    }
+  if (allowedOrigins.includes(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin;
   }
 
   return headers;

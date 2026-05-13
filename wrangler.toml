@@ -30,3 +30,4 @@ enabled = true
 [vars]
 ENVIRONMENT = "production"
 AWS_REGION = "ap-south-1"
+ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
