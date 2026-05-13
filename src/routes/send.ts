@@ -5,6 +5,7 @@
 import type { Env, SendEmailResponse } from '../types';
 import { ValidationError } from '../types';
 import { validateSendEmailRequest } from '../middleware/validator';
+import { validateAndReadBody } from '../middleware/bodySize';
 import { EmailEngine } from '../core/EmailEngine';
 import { getEmailConfig } from '../config/config';
 import { log } from '../middleware/logger';
@@ -18,30 +19,17 @@ export async function handleSend(
   env: Env
 ): Promise<Response> {
   try {
-    const contentType = request.headers.get('Content-Type') || '';
-    if (!contentType.includes('application/json')) {
-      throw new ValidationError('Content-Type must be application/json');
-    }
-
-    const contentLength = parseInt(request.headers.get('Content-Length') || '0', 10);
-    if (contentLength > 2 * 1024 * 1024) { // 2MB hard limit
-      throw new ValidationError('Request body too large. Maximum 2MB allowed.');
-    }
-
-    const idempotencyKey = request.headers.get('Idempotency-Key');
-    if (idempotencyKey) {
-      const cached = await env.RATE_LIMIT_KV.get(`idem:${idempotencyKey}`);
-      if (cached) {
-        return Response.json(JSON.parse(cached), { status: 200 });
-      }
-    }
-
+    // Validate actual body size (not Content-Length header)
+    const bodyText = await validateAndReadBody(request);
+    
+    // Parse JSON with proper error handling
     let body;
     try {
-      body = await request.json();
-    } catch {
-      throw new ValidationError('Malformed JSON payload');
+      body = JSON.parse(bodyText);
+    } catch (jsonError: any) {
+      throw new ValidationError(`Invalid JSON: ${jsonError.message}`);
     }
+    
     const validatedRequest = validateSendEmailRequest(body);
 
     const config = getEmailConfig(env);

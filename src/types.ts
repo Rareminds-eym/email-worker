@@ -9,6 +9,8 @@
 export interface Env {
   // KV Namespaces
   RATE_LIMIT_KV: KVNamespace;
+  
+  // Rate Limiters (only minute-level, Cloudflare only supports 10 or 60 second periods)
   RATE_LIMITER_MINUTE: RateLimit;
 
   // Environment variables
