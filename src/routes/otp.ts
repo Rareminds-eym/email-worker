@@ -19,6 +19,7 @@ import {
   validateVerificationId,
   validateOTPCode,
 } from '../middleware/otpValidator';
+import { maskPhoneNumber } from '../utils/maskPhone';
 
 /**
  * Handle Send OTP Request
@@ -49,7 +50,7 @@ export async function handleSendOTP(request: IRequest, env: Env): Promise<Respon
       validatedFlowType
     );
 
-    console.log(`[OTP-Send] Success - Phone: +${validatedCountryCode}${validatedPhoneNumber}, ID: ${requestId}`);
+    console.log(`[OTP-Send] Success - Phone: ${maskPhoneNumber(validatedPhoneNumber, validatedCountryCode)}, ID: ${requestId}`);
 
     return Response.json({
       success: true,
@@ -107,7 +108,7 @@ export async function handleVerifyOTP(request: IRequest, env: Env): Promise<Resp
       validatedCountryCode
     );
 
-    console.log(`[OTP-Verify] ${result.verified ? 'Success' : 'Failed'} - Phone: +${validatedCountryCode}${validatedPhoneNumber}, ID: ${requestId}`);
+    console.log(`[OTP-Verify] ${result.verified ? 'Success' : 'Failed'} - Phone: ${maskPhoneNumber(validatedPhoneNumber, validatedCountryCode)}, ID: ${requestId}`);
 
     return Response.json({
       success: true,
