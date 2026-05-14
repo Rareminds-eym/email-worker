@@ -12,6 +12,7 @@ import { checkRateLimit } from './middleware/rateLimit';
 import { log, logRequest, logResponse, logError } from './middleware/logger';
 import { handleSend } from './routes/send';
 import { handleHealth, handleDetailedHealth } from './routes/health';
+import { handleSendOTP, handleVerifyOTP } from './routes/otp';
 
 const router = Router();
 
@@ -112,14 +113,6 @@ router.post('/send', async (request, env: Env) => {
   }
 });
 
-router.get('/internal/health', async (request, env: Env) => {
-  authenticateRequest(request, env);
-  const response = await handleInternalHealth(request, env);
-  Object.entries(getCorsHeaders(request, env)).forEach(([key, value]) => {
-    response.headers.set(key, value);
-  });
-  return response;
-});
 
 // ==================== OTP ROUTES ====================
 
