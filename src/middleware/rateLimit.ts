@@ -35,6 +35,12 @@ import { RateLimitError } from '../types';
  * @throws {RateLimitError} When rate limit is exceeded, with retryAfter in seconds
  */
 export async function checkRateLimit(request: Request, env: Env): Promise<void> {
+  // Skip rate limiting if binding is not available (development mode)
+  if (!env.RATE_LIMITER_MINUTE) {
+    console.warn('[Rate Limit] RATE_LIMITER_MINUTE binding not available, skipping rate limit check');
+    return;
+  }
+
   const now = Date.now();
   
   // Check minute limit using native rate limiter

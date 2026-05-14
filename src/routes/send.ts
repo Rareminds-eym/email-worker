@@ -31,6 +31,9 @@ export async function handleSend(
     }
     
     const validatedRequest = validateSendEmailRequest(body);
+    
+    // Extract idempotency key from headers if provided
+    const idempotencyKey = request.headers.get('Idempotency-Key') || request.headers.get('X-Idempotency-Key');
 
     const config = getEmailConfig(env);
 
