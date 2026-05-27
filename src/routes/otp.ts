@@ -10,6 +10,7 @@
 import type { IRequest } from 'itty-router';
 import type { Env, SendOTPRequest, VerifyOTPRequest } from '../types';
 import { ValidationError, OTPError } from '../types';
+import { validateAndReadBody } from '../middleware/bodySize';
 import { MessageCentralService } from '../services/MessageCentralService';
 import { checkOTPRateLimit } from '../middleware/otpRateLimit';
 import {
@@ -30,8 +31,9 @@ export async function handleSendOTP(request: IRequest, env: Env): Promise<Respon
   console.log(`[OTP-Send] Request received - ID: ${requestId}`);
 
   try {
-    // Parse request body
-    const body: SendOTPRequest = await request.json();
+    // Parse request body with size validation
+    const bodyText = await validateAndReadBody(request);
+    const body: SendOTPRequest = JSON.parse(bodyText);
     const { mobileNumber, countryCode, flowType } = body;
 
     // Validate inputs
@@ -86,8 +88,9 @@ export async function handleVerifyOTP(request: IRequest, env: Env): Promise<Resp
   console.log(`[OTP-Verify] Request received - ID: ${requestId}`);
 
   try {
-    // Parse request body
-    const body: VerifyOTPRequest = await request.json();
+    // Parse request body with size validation
+    const bodyText = await validateAndReadBody(request);
+    const body: VerifyOTPRequest = JSON.parse(bodyText);
     const { mobileNumber, verificationId, code, countryCode } = body;
 
     // Validate inputs

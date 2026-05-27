@@ -121,7 +121,7 @@ router.post('/otp/send', async (request, env: Env) => {
   const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
 
   try {
-    authenticateRequest(request, env);
+    await authenticateRequest(request, env);
     logRequest(request, { requestId });
 
     const response = await handleSendOTP(request, env);
@@ -155,7 +155,7 @@ router.post('/otp/verify', async (request, env: Env) => {
   const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
 
   try {
-    authenticateRequest(request, env);
+    await authenticateRequest(request, env);
     logRequest(request, { requestId });
 
     const response = await handleVerifyOTP(request, env);

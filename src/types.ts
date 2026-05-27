@@ -49,6 +49,11 @@ export interface EmailConfig {
     email: string;
     name: string;
   };
+  rateLimit: {
+    perMinute: number;
+    perHour: number;
+    perDay: number;
+  };
 }
 
 // ==================== OTP TYPES ====================
