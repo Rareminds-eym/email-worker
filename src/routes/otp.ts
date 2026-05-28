@@ -21,6 +21,7 @@ import {
   validateOTPCode,
 } from '../middleware/otpValidator';
 import { maskPhoneNumber } from '../utils/maskPhone';
+import { log } from '../middleware/logger';
 
 /**
  * Handle Send OTP Request
@@ -28,7 +29,7 @@ import { maskPhoneNumber } from '../utils/maskPhone';
  */
 export async function handleSendOTP(request: IRequest, env: Env): Promise<Response> {
   const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
-  console.log(`[OTP-Send] Request received - ID: ${requestId}`);
+  log('info', 'OTP send request received', { requestId });
 
   try {
     // Parse request body with size validation
@@ -52,7 +53,7 @@ export async function handleSendOTP(request: IRequest, env: Env): Promise<Respon
       validatedFlowType
     );
 
-    console.log(`[OTP-Send] Success - Phone: ${maskPhoneNumber(validatedPhoneNumber, validatedCountryCode)}, ID: ${requestId}`);
+    log('info', 'OTP sent successfully', { phone: maskPhoneNumber(validatedPhoneNumber, validatedCountryCode), requestId });
 
     return Response.json({
       success: true,
@@ -61,7 +62,7 @@ export async function handleSendOTP(request: IRequest, env: Env): Promise<Respon
       message: 'OTP sent successfully',
     }, { status: 200 });
   } catch (error: any) {
-    console.error(`[OTP-Send] Error - ID: ${requestId}`, error.message);
+    log('error', 'OTP send failed', { error: error.message, requestId });
 
     if (error instanceof ValidationError || error instanceof OTPError) {
       return Response.json({
@@ -85,7 +86,7 @@ export async function handleSendOTP(request: IRequest, env: Env): Promise<Respon
  */
 export async function handleVerifyOTP(request: IRequest, env: Env): Promise<Response> {
   const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
-  console.log(`[OTP-Verify] Request received - ID: ${requestId}`);
+  log('info', 'OTP verify request received', { requestId });
 
   try {
     // Parse request body with size validation
@@ -111,7 +112,7 @@ export async function handleVerifyOTP(request: IRequest, env: Env): Promise<Resp
       validatedCountryCode
     );
 
-    console.log(`[OTP-Verify] ${result.verified ? 'Success' : 'Failed'} - Phone: ${maskPhoneNumber(validatedPhoneNumber, validatedCountryCode)}, ID: ${requestId}`);
+    log('info', result.verified ? 'OTP verified successfully' : 'OTP verification failed', { phone: maskPhoneNumber(validatedPhoneNumber, validatedCountryCode), requestId });
 
     return Response.json({
       success: true,
@@ -121,7 +122,7 @@ export async function handleVerifyOTP(request: IRequest, env: Env): Promise<Resp
         : 'Invalid OTP code',
     }, { status: 200 });
   } catch (error: any) {
-    console.error(`[OTP-Verify] Error - ID: ${requestId}`, error.message);
+    log('error', 'OTP verify failed', { error: error.message, requestId });
 
     if (error instanceof ValidationError || error instanceof OTPError) {
       return Response.json({

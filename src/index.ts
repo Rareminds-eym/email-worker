@@ -271,7 +271,7 @@ export default {
       newResponse.headers.set('X-Request-Id', requestId);
       return newResponse;
     } catch (error: any) {
-      console.error('Fatal unhandled exception in router:', error);
+      logError(error, { path: 'router' });
       return Response.json(
         {
           success: false,
