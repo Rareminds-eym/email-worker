@@ -180,10 +180,50 @@ export function validateSendEmailRequest(body: any): SendEmailRequest {
     );
   }
 
-  // HTML size is measured in characters, not bytes.  For ASCII-heavy email
-  // templates this is equivalent; for multi-byte UTF-8 content the real
-  // byte size will be larger.  This is a pragmatic limit; SES enforces its
-  // own 10 MB payload ceiling as a hard backstop.
+  // LAYER 2 VALIDATION: HTML field size check (business logic)
+  //
+  // This is the second layer of our defense-in-depth validation architecture.
+  // Layer 1 (bodySize.ts) already checked the ENTIRE request body size for
+  // DoS protection. This layer validates the HTML field specifically for
+  // business logic reasons.
+  //
+  // WHY CHECK HTML SIZE SEPARATELY?
+  //
+  // 1. Business Logic Validation:
+  //    - Ensures email content is reasonable
+  //    - Prevents accidentally sending huge emails
+  //    - Protects against AWS SES rejections (10MB total limit)
+  //
+  // 2. Defense-in-Depth:
+  //    - Layer 1 might pass a 5MB request with 3MB HTML + 2MB text
+  //    - This layer ensures HTML alone doesn't exceed 4.5MB
+  //    - Redundant validation catches bugs and edge cases
+  //
+  // 3. Clear Error Messages:
+  //    - Layer 1 error: "Request body too large" (total size issue)
+  //    - Layer 2 error: "HTML content too large" (specific field issue)
+  //    - Helps developers understand what to fix
+  //
+  // WHY 4.5MB (not 5MB)?
+  //
+  // The request body contains MORE than just the HTML field:
+  //   - JSON structure overhead (~200-500 bytes)
+  //   - "to", "subject", "text", "metadata" fields
+  //   - HTML field (largest)
+  //
+  // If HTML = 5MB + other fields = 0.5MB → Total = 5.5MB (exceeds body limit!)
+  // If HTML = 4.5MB + other fields = 0.5MB → Total = 5MB (within body limit ✓)
+  //
+  // The 10% margin (0.5MB) accounts for all non-HTML content.
+  //
+  // SINGLE SOURCE OF TRUTH:
+  // The limit (4.5MB) is imported from constants.ts, not hardcoded here.
+  // To change it, update VALIDATION.MAX_HTML_SIZE in one place.
+  //
+  // NOTE: HTML size is measured in characters, not bytes. For ASCII-heavy
+  // email templates this is equivalent; for multi-byte UTF-8 content the
+  // real byte size will be larger. This is a pragmatic limit; AWS SES
+  // enforces its own 10MB payload ceiling as a hard backstop.
   if (html.length > VALIDATION.MAX_HTML_SIZE) {
     throw new ValidationError(
       `HTML content too large. Maximum ${VALIDATION.MAX_HTML_SIZE} bytes allowed`,
