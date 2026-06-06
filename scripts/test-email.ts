@@ -6,11 +6,11 @@
  * 2. Run this script: npx tsx scripts/test-email.ts
  * 
  * Note: You can override the API URL or API Key by setting environment variables:
- * API_URL=https://your-production-worker.workers.dev API_KEY=your_secret_key npx tsx scripts/test-email.ts
+ * API_URL=https://your-production-worker.workers.dev EMAIL_API_KEY=your_secret_key npx tsx scripts/test-email.ts
  */
 
 const API_URL = process.env.API_URL || 'https://shared-email-api.dark-mode-d021.workers.dev';
-const API_KEY = process.env.API_KEY || 'development_secret_key'; // Replace with your Dev/Prod API Key
+const API_KEY = process.env.EMAIL_API_KEY || 'development_secret_key'; // Replace with your Dev/Prod API Key
 
 async function sendTestEmail() {
   const payload = {
