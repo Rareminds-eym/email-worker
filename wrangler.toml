@@ -31,3 +31,12 @@ enabled = true
 ENVIRONMENT = "production"
 AWS_REGION = "ap-south-1"
 ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
+
+# Secrets (set via `wrangler secret put`):
+# EMAIL_API_KEY                  (shared key for authenticating incoming email requests; must match sso-worker's EMAIL_API_KEY)
+# AWS_ACCESS_KEY_ID              (AWS credentials for SES)
+# AWS_SECRET_ACCESS_KEY          (AWS credentials for SES)
+# DEFAULT_FROM_EMAIL             (default sender email address)
+# DEFAULT_FROM_NAME              (default sender name)
+# MESSAGECENTRAL_CUSTOMER_ID     (MessageCentral SMS customer ID)
+# MESSAGECENTRAL_KEY             (MessageCentral SMS API key)
