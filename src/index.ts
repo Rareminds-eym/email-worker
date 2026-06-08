@@ -4,7 +4,8 @@
  */
 
 import { Router } from 'itty-router';
-import type { Env } from './types';
+import { WorkerEntrypoint } from 'cloudflare:workers';
+import type { Env, SendEmailRequest, SendEmailResponse } from './types';
 import { EmailWorkerError, AuthenticationError, RateLimitError, ValidationError, OTPError } from './types';
 import { getCorsHeaders, VERSION } from './constants';
 import { authenticateRequest } from './middleware/auth';
@@ -13,6 +14,9 @@ import { log, logRequest, logResponse, logError } from './middleware/logger';
 import { handleSend } from './routes/send';
 import { handleHealth, handleDetailedHealth } from './routes/health';
 import { handleSendOTP, handleVerifyOTP } from './routes/otp';
+import { validateSendEmailRequest } from './middleware/validator';
+import { getEmailConfig } from './config/config';
+import { EmailEngine } from './core/EmailEngine';
 
 const router = Router();
 
@@ -258,15 +262,48 @@ function handleError(error: any, request: Request, env?: Env): Response {
   }, { status: 500, headers: corsHeaders });
 }
 
-// ==================== WORKER EXPORT ====================
+// ==================== WORKER EXPORT (default) ====================
 
-export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+export default class EmailService extends WorkerEntrypoint<Env> {
+  // ── RPC Methods ──────────────────────────────────────────────────────
+
+  async sendEmail(request: SendEmailRequest): Promise<SendEmailResponse> {
+    try {
+      const validatedRequest = validateSendEmailRequest(request);
+      const config = getEmailConfig(this.env);
+      const engine = new EmailEngine(config);
+      const result = await engine.send(validatedRequest);
+
+      return {
+        success: result.success,
+        messageId: result.messageId,
+        customMessageId: result.customMessageId,
+        recipient: validatedRequest.to,
+        timestamp: new Date().toISOString(),
+        error: result.error,
+        errorCode: result.success ? undefined : 'PROVIDER_ERROR',
+        errorType: result.errorType,
+        shouldRetry: result.shouldRetry,
+      };
+    } catch (error: any) {
+      log('error', 'RPC sendEmail failed', { error: error.message });
+      return {
+        success: false,
+        error: error.message,
+        errorCode: error.code || 'RPC_ERROR',
+      };
+    }
+  }
+
+  // ── HTTP Handler ─────────────────────────────────────────────────────
+
+  async fetch(request: Request): Promise<Response> {
+    const env = this.env;
+    const ctx = this.ctx;
     const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
 
     try {
       const response = await router.handle(request, env, ctx);
-      // Append X-Request-Id globally
       const newResponse = new Response(response.body, response);
       newResponse.headers.set('X-Request-Id', requestId);
       return newResponse;
@@ -284,5 +321,5 @@ export default {
         }
       );
     }
-  },
-};
+  }
+}
