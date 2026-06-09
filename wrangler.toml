@@ -1,4 +1,4 @@
-name = "shared-email-api"
+name = "shared-email-api-dev"
 main = "src/index.ts"
 compatibility_date = "2026-05-25"
 compatibility_flags = ["nodejs_compat"]
@@ -18,12 +18,12 @@ inspector_port = 9201
 
 [[kv_namespaces]]
 binding = "RATE_LIMIT_KV"
-id = "9ce4234505744e7e9e9c01a5c1b0b1b0"
-preview_id = "c45ac18997334201a93ff4b7605bd877"
+id = "a01a250ae61941a6adb3b4c702b6ea2f"
+preview_id = "a01a250ae61941a6adb3b4c702b6ea2f"
 
 [[ratelimits]]
 name = "RATE_LIMITER_MINUTE"
-namespace_id = "10030"
+namespace_id = "10031"
 simple = { limit = 20, period = 60 }
 
 # ============================================================================
@@ -34,12 +34,14 @@ simple = { limit = 20, period = 60 }
 enabled = true
 
 # ============================================================================
-# VARIABLES
+# DEV — wrangler deploy (default, no --env flag)
+# Deploys as: shared-email-api-dev
 # ============================================================================
+
 [vars]
-ENVIRONMENT = "production"
+ENVIRONMENT = "dev"
 AWS_REGION = "ap-south-1"
-ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
+ALLOWED_ORIGINS = "https://dev.skillpassports.com"
 
 # Secrets (set via `wrangler secret put`):
 # EMAIL_API_KEY                  (shared key for authenticating incoming email requests; must match sso-worker's EMAIL_API_KEY)
@@ -49,3 +51,100 @@ ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.
 # DEFAULT_FROM_NAME              (default sender name)
 # MESSAGECENTRAL_CUSTOMER_ID     (MessageCentral SMS customer ID)
 # MESSAGECENTRAL_KEY             (MessageCentral SMS API key)
+
+# ============================================================================
+# STAGING — wrangler deploy --env staging
+# Deploys as: shared-email-api-staging
+# ============================================================================
+
+[env.staging]
+name = "shared-email-api-staging"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+AWS_REGION = "ap-south-1"
+ALLOWED_ORIGINS = "https://staging.skillpassports.com"
+
+[[env.staging.kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "bd5c0a1fa7554a91b6acbff1b345997e"
+preview_id = "bd5c0a1fa7554a91b6acbff1b345997e"
+
+[[env.staging.ratelimits]]
+name = "RATE_LIMITER_MINUTE"
+# ⚠️ Replace with staging rate limiter namespace ID
+namespace_id = "10031"
+simple = { limit = 20, period = 60 }
+
+# Secrets for staging (set via `wrangler secret put --env staging`):
+# EMAIL_API_KEY
+# AWS_ACCESS_KEY_ID
+# AWS_SECRET_ACCESS_KEY
+# DEFAULT_FROM_EMAIL
+# DEFAULT_FROM_NAME
+# MESSAGECENTRAL_CUSTOMER_ID
+# MESSAGECENTRAL_KEY
+
+# ============================================================================
+# DEMO — wrangler deploy --env demo
+# Deploys as: shared-email-api-demo
+# ============================================================================
+
+[env.demo]
+name = "shared-email-api-demo"
+
+[env.demo.vars]
+ENVIRONMENT = "demo"
+AWS_REGION = "ap-south-1"
+ALLOWED_ORIGINS = "https://demo.skillpassports.com"
+
+[[env.demo.kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "ea3223cc72424e06a73f5916b024f906"
+preview_id = "ea3223cc72424e06a73f5916b024f906"
+
+[[env.demo.ratelimits]]
+name = "RATE_LIMITER_MINUTE"
+# ⚠️ Replace with demo rate limiter namespace ID
+namespace_id = "10041"
+simple = { limit = 20, period = 60 }
+
+# Secrets for demo (set via `wrangler secret put --env demo`):
+# EMAIL_API_KEY
+# AWS_ACCESS_KEY_ID
+# AWS_SECRET_ACCESS_KEY
+# DEFAULT_FROM_EMAIL
+# DEFAULT_FROM_NAME
+# MESSAGECENTRAL_CUSTOMER_ID
+# MESSAGECENTRAL_KEY
+
+# ============================================================================
+# PRODUCTION — wrangler deploy --env production
+# Deploys as: shared-email-api-production
+# ============================================================================
+[env.production]
+name = "shared-email-api-production"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+AWS_REGION = "ap-south-1"
+ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
+
+[[env.production.kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "9ce4234505744e7e9e9c01a5c1b0b1b0"
+preview_id = "c45ac18997334201a93ff4b7605bd877"
+
+[[env.production.ratelimits]]
+name = "RATE_LIMITER_MINUTE"
+namespace_id = "10030"
+simple = { limit = 20, period = 60 }
+
+# Secrets for production (set via `wrangler secret put`):
+# EMAIL_API_KEY
+# AWS_ACCESS_KEY_ID
+# AWS_SECRET_ACCESS_KEY
+# DEFAULT_FROM_EMAIL
+# DEFAULT_FROM_NAME
+# MESSAGECENTRAL_CUSTOMER_ID
+# MESSAGECENTRAL_KEY
