@@ -7,3 +7,6 @@ dist/
 .dev.vars
 
 .agents/
+
+# Graphify knowledge graph output
+graphify-out/
