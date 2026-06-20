@@ -6,6 +6,10 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "deploy:dev": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:demo": "wrangler deploy --env demo",
+    "deploy:production": "wrangler deploy --env production",
     "tail": "wrangler tail",
     "secrets:setup": "bash scripts/setup-secrets.sh",
     "secrets:list": "wrangler secret list",
