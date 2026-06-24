@@ -5,7 +5,7 @@
 
 import { Router } from 'itty-router';
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import type { Env, SendEmailRequest, SendEmailResponse } from './types';
+import type { Env, SendEmailRequest, SendEmailResponse, SendOTPRequest, SendOTPResponse, VerifyOTPRequest, VerifyOTPResponse } from './types';
 import { EmailWorkerError, AuthenticationError, RateLimitError, ValidationError, OTPError } from './types';
 import { getCorsHeaders, VERSION } from './constants';
 import { authenticateRequest } from './middleware/auth';
@@ -17,6 +17,10 @@ import { handleSendOTP, handleVerifyOTP } from './routes/otp';
 import { validateSendEmailRequest } from './middleware/validator';
 import { getEmailConfig } from './config/config';
 import { EmailEngine } from './core/EmailEngine';
+import { MessageCentralService } from './services/MessageCentralService';
+import { checkOTPRateLimit } from './middleware/otpRateLimit';
+import { validatePhoneNumber, validateCountryCode, validateFlowType, validateVerificationId, validateOTPCode } from './middleware/otpValidator';
+import { maskPhoneNumber } from './utils/maskPhone';
 
 const router = Router();
 
@@ -264,7 +268,7 @@ function handleError(error: any, request: Request, env?: Env): Response {
 
 // ==================== WORKER EXPORT (default) ====================
 
-export default class EmailService extends WorkerEntrypoint<Env> {
+class EmailService extends WorkerEntrypoint<Env> {
   // ── RPC Methods ──────────────────────────────────────────────────────
 
   async sendEmail(request: SendEmailRequest): Promise<SendEmailResponse> {
@@ -291,6 +295,67 @@ export default class EmailService extends WorkerEntrypoint<Env> {
         success: false,
         error: error.message,
         errorCode: error.code || 'RPC_ERROR',
+      };
+    }
+  }
+
+  async sendOTP(request: SendOTPRequest): Promise<SendOTPResponse> {
+    try {
+      const { mobileNumber, countryCode, flowType } = request;
+
+      const validatedCountryCode = validateCountryCode(countryCode);
+      const validatedPhoneNumber = validatePhoneNumber(mobileNumber, validatedCountryCode);
+      const validatedFlowType = validateFlowType(flowType);
+
+      checkOTPRateLimit(validatedPhoneNumber, 'SEND_OTP');
+
+      const service = new MessageCentralService(this.env);
+      const result = await service.sendOTP(validatedPhoneNumber, validatedCountryCode, validatedFlowType);
+
+      log('info', 'RPC OTP sent successfully', { phone: maskPhoneNumber(validatedPhoneNumber, validatedCountryCode) });
+
+      return {
+        success: true,
+        verificationId: result.verificationId,
+        timeout: result.timeout,
+        message: 'OTP sent successfully',
+      };
+    } catch (error: any) {
+      log('error', 'RPC sendOTP failed', { error: error.message });
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  async verifyOTP(request: VerifyOTPRequest): Promise<VerifyOTPResponse> {
+    try {
+      const { mobileNumber, verificationId, code, countryCode } = request;
+
+      const validatedCountryCode = validateCountryCode(countryCode);
+      const validatedPhoneNumber = validatePhoneNumber(mobileNumber, validatedCountryCode);
+      validateVerificationId(verificationId);
+      validateOTPCode(code);
+
+      checkOTPRateLimit(`${validatedPhoneNumber}_${verificationId}`, 'VERIFY_OTP');
+
+      const service = new MessageCentralService(this.env);
+      const result = await service.verifyOTP(validatedPhoneNumber, verificationId, code, validatedCountryCode);
+
+      log('info', result.verified ? 'RPC OTP verified successfully' : 'RPC OTP verification failed', { phone: maskPhoneNumber(validatedPhoneNumber, validatedCountryCode) });
+
+      return {
+        success: true,
+        verified: result.verified,
+        message: result.verified ? 'Phone number verified successfully' : 'Invalid OTP code',
+      };
+    } catch (error: any) {
+      log('error', 'RPC verifyOTP failed', { error: error.message });
+      return {
+        success: false,
+        verified: false,
+        error: error.message,
       };
     }
   }
@@ -323,3 +388,6 @@ export default class EmailService extends WorkerEntrypoint<Env> {
     }
   }
 }
+
+export { EmailService };
+export default EmailService;
