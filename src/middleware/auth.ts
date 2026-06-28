@@ -2,7 +2,7 @@
  * Authentication Middleware
  *
  * Validates every inbound request against the single shared API key stored
- * in the worker's environment (env.API_KEY).  This worker is intentionally
+ * in the worker's environment (env.EMAIL_API_KEY).  This worker is intentionally
  * single-tenant — all authorised callers (SkillPassport, future websites)
  * share the same key.  If per-caller isolation is ever needed, introduce
  * a key-to-tenant map here rather than in the router layer.
@@ -36,11 +36,11 @@ import { AuthenticationError } from '../types';
  *   2. `X-API-Key` header           (backward-compatible fallback)
  *   3. `Authorization: Bearer <token>` header  (RFC 6750 fallback)
  *
- * All three headers are validated against the same secret (`env.API_KEY`).
+ * All three headers are validated against the same secret (`env.EMAIL_API_KEY`).
  *
  * Throws `AuthenticationError` (HTTP 401) when:
  *   - No auth header is present or all are empty
- *   - The extracted key does not match `env.API_KEY`
+ *   - The extracted key does not match `env.EMAIL_API_KEY`
  *
  * Security implementation:
  *   - Uses SHA-256 hashing to produce fixed-length (32-byte) digests before comparison
@@ -49,7 +49,7 @@ import { AuthenticationError } from '../types';
  *   - Prevents statistical timing analysis attacks over network round-trips
  *
  * @param request - The incoming Cloudflare Workers Request object
- * @param env     - Worker environment bindings (contains API_KEY secret)
+ * @param env     - Worker environment bindings (contains EMAIL_API_KEY secret)
  * @throws {AuthenticationError} on missing or invalid credentials
  */
 export async function authenticateRequest(request: Request, env: Env): Promise<void> {
@@ -82,7 +82,7 @@ export async function authenticateRequest(request: Request, env: Env): Promise<v
   // - Maintains constant-time comparison via crypto.subtle.timingSafeEqual
   const encoder = new TextEncoder();
   const userValue = encoder.encode(apiKey);
-  const secretValue = encoder.encode(env.API_KEY);
+  const secretValue = encoder.encode(env.EMAIL_API_KEY);
 
   // Hash both values to fixed-length 32-byte digests
   const userHash = await crypto.subtle.digest('SHA-256', userValue);

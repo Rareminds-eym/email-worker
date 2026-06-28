@@ -5,6 +5,7 @@
 
 import type { Env } from '../types';
 import { RateLimitError } from '../types';
+import { log } from '../middleware/logger';
 
 interface RateLimitRecord {
   count: number;
@@ -59,7 +60,7 @@ export function checkOTPRateLimit(
   // Check if limit exceeded
   if (record.count >= config.MAX_REQUESTS) {
     const retryAfter = Math.ceil((record.resetAt - now) / 1000);
-    console.warn(`[OTP-RateLimit] Limit exceeded for ${identifier} (${type})`);
+    log('warn', 'OTP rate limit exceeded', { identifier, type });
     throw new RateLimitError(
       'Too many requests. Please try again later.',
       retryAfter
@@ -85,6 +86,6 @@ export function cleanupExpiredRateLimits(): void {
   }
 
   if (cleaned > 0) {
-    console.log(`[OTP-RateLimit] Cleaned up ${cleaned} expired records`);
+    log('info', 'OTP rate limit cache cleaned', { cleaned });
   }
 }

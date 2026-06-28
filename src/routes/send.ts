@@ -35,6 +35,15 @@ export async function handleSend(
     // Extract idempotency key from headers if provided
     const idempotencyKey = request.headers.get('Idempotency-Key') || request.headers.get('X-Idempotency-Key');
 
+    // Check if this idempotency key was already processed
+    if (idempotencyKey) {
+      const existing = await env.RATE_LIMIT_KV.get(`idem:${idempotencyKey}`);
+      if (existing) {
+        log('info', 'Returning cached result for idempotency key', { idempotencyKey });
+        return Response.json(JSON.parse(existing), { status: 200 });
+      }
+    }
+
     const config = getEmailConfig(env);
 
     if (!cachedEngine || cachedRegion !== env.AWS_REGION || cachedAccessKey !== env.AWS_ACCESS_KEY_ID) {
