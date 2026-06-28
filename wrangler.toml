@@ -46,7 +46,7 @@ simple = { limit = 20, period = 60 }
 [vars]
 ENVIRONMENT = "production"
 AWS_REGION = "ap-south-1"
-ALLOWED_ORIGINS = "https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in"
+ALLOWED_ORIGINS = "http://localhost:3000,http://localhost:5173,http://localhost:8788,http://localhost:9001,http://127.0.0.1:8788,http://127.0.0.1:9001,https://skillpassport.rareminds.in,https://www.skillpassport.rareminds.in,https://*.rareminds.in,https://*.pages.dev"
 
 # Secrets (set via `wrangler secret put`):
 # EMAIL_API_KEY                  (shared key for authenticating incoming email requests; must match sso-worker's EMAIL_API_KEY)
