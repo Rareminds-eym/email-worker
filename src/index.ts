@@ -4,7 +4,8 @@
  */
 
 import { Router } from 'itty-router';
-import type { Env } from './types';
+import { WorkerEntrypoint } from 'cloudflare:workers';
+import type { Env, SendEmailRequest, SendEmailResponse, SendOTPRequest, SendOTPResponse, VerifyOTPRequest, VerifyOTPResponse } from './types';
 import { EmailWorkerError, AuthenticationError, RateLimitError, ValidationError, OTPError } from './types';
 import { getCorsHeaders, VERSION } from './constants';
 import { authenticateRequest } from './middleware/auth';
@@ -13,6 +14,13 @@ import { log, logRequest, logResponse, logError } from './middleware/logger';
 import { handleSend } from './routes/send';
 import { handleHealth, handleDetailedHealth } from './routes/health';
 import { handleSendOTP, handleVerifyOTP } from './routes/otp';
+import { validateSendEmailRequest } from './middleware/validator';
+import { getEmailConfig } from './config/config';
+import { EmailEngine } from './core/EmailEngine';
+import { MessageCentralService } from './services/MessageCentralService';
+import { checkOTPRateLimit } from './middleware/otpRateLimit';
+import { validatePhoneNumber, validateCountryCode, validateFlowType, validateVerificationId, validateOTPCode } from './middleware/otpValidator';
+import { maskPhoneNumber } from './utils/maskPhone';
 
 const router = Router();
 
@@ -121,7 +129,7 @@ router.post('/otp/send', async (request, env: Env) => {
   const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
 
   try {
-    authenticateRequest(request, env);
+    await authenticateRequest(request, env);
     logRequest(request, { requestId });
 
     const response = await handleSendOTP(request, env);
@@ -155,7 +163,7 @@ router.post('/otp/verify', async (request, env: Env) => {
   const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
 
   try {
-    authenticateRequest(request, env);
+    await authenticateRequest(request, env);
     logRequest(request, { requestId });
 
     const response = await handleVerifyOTP(request, env);
@@ -258,20 +266,114 @@ function handleError(error: any, request: Request, env?: Env): Response {
   }, { status: 500, headers: corsHeaders });
 }
 
-// ==================== WORKER EXPORT ====================
+// ==================== WORKER EXPORT (default) ====================
 
-export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+class EmailService extends WorkerEntrypoint<Env> {
+  // ── RPC Methods ──────────────────────────────────────────────────────
+
+  async sendEmail(request: SendEmailRequest): Promise<SendEmailResponse> {
+    try {
+      const validatedRequest = validateSendEmailRequest(request);
+      const config = getEmailConfig(this.env);
+      const engine = new EmailEngine(config);
+      const result = await engine.send(validatedRequest);
+
+      return {
+        success: result.success,
+        messageId: result.messageId,
+        customMessageId: result.customMessageId,
+        recipient: validatedRequest.to,
+        timestamp: new Date().toISOString(),
+        error: result.error,
+        errorCode: result.success ? undefined : 'PROVIDER_ERROR',
+        errorType: result.errorType,
+        shouldRetry: result.shouldRetry,
+      };
+    } catch (error: any) {
+      log('error', 'RPC sendEmail failed', { error: error.message });
+      return {
+        success: false,
+        error: error.message,
+        errorCode: error.code || 'RPC_ERROR',
+      };
+    }
+  }
+
+  async sendOTP(request: SendOTPRequest): Promise<SendOTPResponse> {
+    try {
+      const { mobileNumber, countryCode, flowType } = request;
+
+      const validatedCountryCode = validateCountryCode(countryCode);
+      const validatedPhoneNumber = validatePhoneNumber(mobileNumber, validatedCountryCode);
+      const validatedFlowType = validateFlowType(flowType);
+
+      checkOTPRateLimit(validatedPhoneNumber, 'SEND_OTP');
+
+      const service = new MessageCentralService(this.env);
+      const result = await service.sendOTP(validatedPhoneNumber, validatedCountryCode, validatedFlowType);
+
+      log('info', 'RPC OTP sent successfully', { phone: maskPhoneNumber(validatedPhoneNumber, validatedCountryCode) });
+
+      return {
+        success: true,
+        verificationId: result.verificationId,
+        timeout: result.timeout,
+        message: 'OTP sent successfully',
+      };
+    } catch (error: any) {
+      log('error', 'RPC sendOTP failed', { error: error.message });
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  async verifyOTP(request: VerifyOTPRequest): Promise<VerifyOTPResponse> {
+    try {
+      const { mobileNumber, verificationId, code, countryCode } = request;
+
+      const validatedCountryCode = validateCountryCode(countryCode);
+      const validatedPhoneNumber = validatePhoneNumber(mobileNumber, validatedCountryCode);
+      validateVerificationId(verificationId);
+      validateOTPCode(code);
+
+      checkOTPRateLimit(`${validatedPhoneNumber}_${verificationId}`, 'VERIFY_OTP');
+
+      const service = new MessageCentralService(this.env);
+      const result = await service.verifyOTP(validatedPhoneNumber, verificationId, code, validatedCountryCode);
+
+      log('info', result.verified ? 'RPC OTP verified successfully' : 'RPC OTP verification failed', { phone: maskPhoneNumber(validatedPhoneNumber, validatedCountryCode) });
+
+      return {
+        success: true,
+        verified: result.verified,
+        message: result.verified ? 'Phone number verified successfully' : 'Invalid OTP code',
+      };
+    } catch (error: any) {
+      log('error', 'RPC verifyOTP failed', { error: error.message });
+      return {
+        success: false,
+        verified: false,
+        error: error.message,
+      };
+    }
+  }
+
+  // ── HTTP Handler ─────────────────────────────────────────────────────
+
+  async fetch(request: Request): Promise<Response> {
+    const env = this.env;
+    const ctx = this.ctx;
     const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
 
     try {
       const response = await router.handle(request, env, ctx);
-      // Append X-Request-Id globally
       const newResponse = new Response(response.body, response);
       newResponse.headers.set('X-Request-Id', requestId);
       return newResponse;
     } catch (error: any) {
-      console.error('Fatal unhandled exception in router:', error);
+      logError(error, { path: 'router' });
       return Response.json(
         {
           success: false,
@@ -284,5 +386,8 @@ export default {
         }
       );
     }
-  },
-};
+  }
+}
+
+export { EmailService };
+export default EmailService;

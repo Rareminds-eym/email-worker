@@ -205,7 +205,7 @@ export class MessageCentralService {
     this.validateCountryCode(countryCode);
     this.validateMobileNumber(mobileNumber);
 
-    console.log(`[MessageCentral] Sending OTP to ${maskPhoneNumber(mobileNumber, countryCode)} via ${flowType}`);
+    log('info', 'Sending OTP via MessageCentral', { phone: maskPhoneNumber(mobileNumber, countryCode), flowType });
 
     const authToken = this.authToken;
     const customerId = this.env.MESSAGECENTRAL_CUSTOMER_ID;
@@ -230,7 +230,7 @@ export class MessageCentralService {
       const data: MessageCentralSendResponse = await response.json();
 
       if (data.responseCode === 200 && data.data) {
-        console.log(`[MessageCentral] OTP sent successfully`);
+        log('info', 'MessageCentral OTP sent successfully', { verificationId: data.data.verificationId });
         return {
           verificationId: data.data.verificationId,
           timeout: data.data.timeout || '60',
@@ -245,12 +245,12 @@ export class MessageCentralService {
         status: 400,
       };
 
-      console.error(`[MessageCentral] Send failed - Code: ${data.responseCode}, Message: ${error.message}`);
+      log('error', 'MessageCentral send failed', { responseCode: data.responseCode, message: error.message });
       throw new OTPError(error.message, error.code, error.status);
     } catch (error: any) {
       if (error instanceof OTPError) throw error;
 
-      console.error('[MessageCentral] Send exception:', error.message);
+      log('error', 'MessageCentral send exception', { error: error.message });
       throw new OTPError(
         'Failed to send OTP. Please try again.',
         'SEND_ERROR',
@@ -277,7 +277,7 @@ export class MessageCentralService {
     this.validateVerificationId(verificationId);
     this.validateOTPCode(code);
 
-    console.log(`[MessageCentral] Verifying OTP for ${maskPhoneNumber(mobileNumber, countryCode)}`);
+    log('info', 'Verifying OTP via MessageCentral', { phone: maskPhoneNumber(mobileNumber, countryCode) });
 
     const authToken = this.authToken;
     const customerId = this.env.MESSAGECENTRAL_CUSTOMER_ID;
@@ -315,7 +315,7 @@ export class MessageCentralService {
 
       if (data.responseCode === 200 && data.data) {
         const verified = data.data.verificationStatus === 'VERIFICATION_COMPLETED';
-        console.log(`[MessageCentral] Verification ${verified ? 'successful' : 'failed'} - Status: ${data.data.verificationStatus}`);
+        log('info', 'MessageCentral verification result', { verified, status: data.data.verificationStatus });
         
         return {
           verified,
@@ -330,12 +330,12 @@ export class MessageCentralService {
         status: 400,
       };
 
-      console.error(`[MessageCentral] Verify failed - Code: ${data.responseCode}, Message: ${error.message}`);
+      log('error', 'MessageCentral verify failed', { responseCode: data.responseCode, message: error.message });
       throw new OTPError(error.message, error.code, error.status);
     } catch (error: any) {
       if (error instanceof OTPError) throw error;
 
-      console.error('[MessageCentral] Verify exception:', error.message);
+      log('error', 'MessageCentral verify exception', { error: error.message });
       throw new OTPError(
         'Failed to verify OTP. Please try again.',
         'VERIFY_ERROR',
@@ -348,6 +348,6 @@ export class MessageCentralService {
    * Clear token cache (no longer needed, kept for backward compatibility)
    */
   clearTokenCache(): void {
-    console.log('[MessageCentral] Token cache not used (using long-lived token)');
+    log('debug', 'Token cache not used (using long-lived token)');
   }
 }

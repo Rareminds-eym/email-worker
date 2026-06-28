@@ -17,8 +17,8 @@ export interface Env {
   ENVIRONMENT: 'development' | 'staging' | 'production';
   ALLOWED_ORIGINS?: string;
 
-  // API Key for authentication
-  API_KEY: string;
+  // API Key for authentication (shared with sso-worker's EMAIL_API_KEY)
+  EMAIL_API_KEY: string;
 
   // AWS SES credentials (shared across all websites)
   AWS_ACCESS_KEY_ID: string;
@@ -48,6 +48,11 @@ export interface EmailConfig {
   defaultFrom: {
     email: string;
     name: string;
+  };
+  rateLimit: {
+    perMinute: number;
+    perHour: number;
+    perDay: number;
   };
 }
 
