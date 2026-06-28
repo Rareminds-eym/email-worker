@@ -1,21 +1,16 @@
 name = "shared-email-api"
 main = "src/index.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2026-05-25"
 compatibility_flags = ["nodejs_compat"]
 
 # ============================================================================
-# BINDINGS
+# LOCAL DEV
 # ============================================================================
 
-[[kv_namespaces]]
-binding = "RATE_LIMIT_KV"
-id = "9ce4234505744e7e9e9c01a5c1b0b1b0"
-preview_id = "c45ac18997334201a93ff4b7605bd877"
-
-[[ratelimits]]
-name = "RATE_LIMITER_MINUTE"
-namespace_id = "10030"
-simple = { limit = 20, period = 60 }
+[dev]
+port = 9001
+host = "127.0.0.1"
+inspector_port = 9201
 
 # ============================================================================
 # OBSERVABILITY
@@ -24,9 +19,30 @@ simple = { limit = 20, period = 60 }
 [observability]
 enabled = true
 
+[observability.logs]
+head_sampling_rate = 1
+
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.01
+
+# ============================================================================
+# BINDINGS
+# ============================================================================
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "9ce4234505744e7e9e9c01a5c1b0b1b0"
+
+[[ratelimits]]
+name = "RATE_LIMITER_MINUTE"
+namespace_id = "10030"
+simple = { limit = 20, period = 60 }
+
 # ============================================================================
 # VARIABLES
 # ============================================================================
+
 [vars]
 ENVIRONMENT = "production"
 AWS_REGION = "ap-south-1"
