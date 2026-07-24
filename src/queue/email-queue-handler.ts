@@ -71,7 +71,7 @@ export function validateEmailMessage(body: unknown): ValidationResult {
       replyTo: typeof msg.replyTo === 'string' ? msg.replyTo : undefined,
       cc: Array.isArray(msg.cc) ? (msg.cc as string[]) : undefined,
       bcc: Array.isArray(msg.bcc) ? (msg.bcc as string[]) : undefined,
-      metadata: msg.metadata && typeof msg.metadata === 'object' ? (msg.metadata as Record<string, any>) : undefined,
+      metadata: msg.metadata && typeof msg.metadata === 'object' ? (msg.metadata as Record<string, unknown>) : undefined,
     },
   };
 }

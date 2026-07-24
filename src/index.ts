@@ -21,6 +21,7 @@ import { MessageCentralService } from './services/MessageCentralService';
 import { checkOTPRateLimit } from './middleware/otpRateLimit';
 import { validatePhoneNumber, validateCountryCode, validateFlowType, validateVerificationId, validateOTPCode } from './middleware/otpValidator';
 import { maskPhoneNumber } from './utils/maskPhone';
+import { handleEmailQueue } from './queue/email-queue-handler';
 
 const router = Router();
 
@@ -89,7 +90,7 @@ router.post('/send', async (request, env: Env) => {
     // Authenticate
     await authenticateRequest(request, env);
     logRequest(request, null);
-    
+
     // Rate limit
     await checkRateLimit(request, env);
 
@@ -391,10 +392,8 @@ class EmailService extends WorkerEntrypoint<Env> {
   // ══════════════════════════════════════════════════════════════
   // QUEUE HANDLER - Email Queue Consumer
   // ══════════════════════════════════════════════════════════════
-  
-  async queue(batch: any): Promise<void> {
-    const { handleEmailQueue } = await import('./queue/email-queue-handler');
-    
+
+  async queue(batch: MessageBatch): Promise<void> {
     if (batch.queue === 'email-dlq') {
       for (const message of batch.messages) {
         console.error(`[email-worker] [DLQ] Unrecoverable message:`, JSON.stringify(message.body));
@@ -402,12 +401,19 @@ class EmailService extends WorkerEntrypoint<Env> {
       }
       return;
     }
-    
+
     if (batch.queue === 'email-queue') {
-      await handleEmailQueue(this.env, batch);
+      try {
+        await handleEmailQueue(this.env, batch);
+      } catch (error) {
+        console.error('[email-worker] [Queue] Failed to process email batch:', error);
+        for (const message of batch.messages) {
+          message.retry();
+        }
+      }
       return;
     }
-    
+
     console.warn(`[email-worker] Unknown queue: ${batch.queue}`);
   }
 }
