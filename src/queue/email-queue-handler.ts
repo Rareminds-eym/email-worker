@@ -69,8 +69,8 @@ export function validateEmailMessage(body: unknown): ValidationResult {
       from: typeof msg.from === 'string' ? msg.from : undefined,
       fromName: typeof msg.fromName === 'string' ? msg.fromName : undefined,
       replyTo: typeof msg.replyTo === 'string' ? msg.replyTo : undefined,
-      cc: Array.isArray(msg.cc) ? (msg.cc as string[]) : undefined,
-      bcc: Array.isArray(msg.bcc) ? (msg.bcc as string[]) : undefined,
+      cc: Array.isArray(msg.cc) && msg.cc.every((item): item is string => typeof item === 'string') ? msg.cc : undefined,
+      bcc: Array.isArray(msg.bcc) && msg.bcc.every((item): item is string => typeof item === 'string') ? msg.bcc : undefined,
       metadata: msg.metadata && typeof msg.metadata === 'object' ? (msg.metadata as Record<string, unknown>) : undefined,
     },
   };
