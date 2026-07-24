@@ -130,7 +130,7 @@ export interface SendEmailRequest {
   replyTo?: string;
   cc?: string[];
   bcc?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface SendEmailResponse {
@@ -170,7 +170,7 @@ export interface EmailMessage {
   text?: string;
   cc?: string[];
   bcc?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   messageId?: string;
 }
 
