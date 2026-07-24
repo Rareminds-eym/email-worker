@@ -387,6 +387,29 @@ class EmailService extends WorkerEntrypoint<Env> {
       );
     }
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // QUEUE HANDLER - Email Queue Consumer
+  // ══════════════════════════════════════════════════════════════
+  
+  async queue(batch: any): Promise<void> {
+    const { handleEmailQueue } = await import('./queue/email-queue-handler');
+    
+    if (batch.queue === 'email-dlq') {
+      for (const message of batch.messages) {
+        console.error(`[email-worker] [DLQ] Unrecoverable message:`, JSON.stringify(message.body));
+        message.ack();
+      }
+      return;
+    }
+    
+    if (batch.queue === 'email-queue') {
+      await handleEmailQueue(this.env, batch);
+      return;
+    }
+    
+    console.warn(`[email-worker] Unknown queue: ${batch.queue}`);
+  }
 }
 
 export { EmailService };
