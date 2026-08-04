@@ -40,6 +40,22 @@ namespace_id = "10030"
 simple = { limit = 20, period = 60 }
 
 # ============================================================================
+# QUEUE CONSUMERS
+# ============================================================================
+
+[[queues.consumers]]
+queue = "email-queue"
+max_batch_size = 50
+max_batch_timeout = 10
+max_retries = 3
+dead_letter_queue = "email-dlq"
+
+[[queues.consumers]]
+queue = "email-dlq"
+max_batch_size = 50
+max_batch_timeout = 10
+
+# ============================================================================
 # VARIABLES
 # ============================================================================
 
