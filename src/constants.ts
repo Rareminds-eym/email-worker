@@ -139,23 +139,36 @@ export const VALIDATION = {
 const ORIGIN_REGEX = /^https?:\/\/.+/;
 
 /**
+ * Match an origin against an allowed entry. Supports `*` wildcards (e.g.
+ * `https://*.rareminds.in` matches any subdomain). Exact match otherwise.
+ */
+function originMatches(origin: string, allowed: string): boolean {
+  if (!allowed.includes('*')) return origin === allowed;
+  const pattern = '^' + allowed
+    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '[^/:]+') + '(:[0-9]+)?$';
+  return new RegExp(pattern).test(origin);
+}
+
+/**
  * Get CORS headers driven entirely by the ALLOWED_ORIGINS environment variable.
  *
- * No origins are hardcoded. The full list lives in Cloudflare's secret store
- * (set via `wrangler secret put ALLOWED_ORIGINS`) so it can be updated without
- * a code change or redeploy. For local dev, set ALLOWED_ORIGINS in .dev.vars.
+ * No origins are hardcoded. The full list lives in `[vars]` in wrangler.toml
+ * (ALLOWED_ORIGINS), so it can be updated without a code change by redeploying.
+ * For local dev, set ALLOWED_ORIGINS in .dev.vars.
  *
  * Parsing rules for ALLOWED_ORIGINS:
  *   - Comma-separated: "https://a.com,https://b.com"
  *   - Whitespace around each entry is trimmed automatically
  *   - Empty entries (e.g. trailing comma) are filtered out
  *   - Entries that don't start with http:// or https:// are silently ignored
+ *   - `*` wildcards are supported (e.g. `https://*.rareminds.in` matches any subdomain)
  *   - If ALLOWED_ORIGINS is unset or empty, no origin is ever allowed (all
- *     browser requests will be blocked by CORS — set the secret before deploy)
+ *     browser requests will be blocked by CORS — set the variable before deploy)
  *
  * Behaviour:
  *   - No Origin header (curl, server-to-server) → passes through, no ACAO set.
- *   - ENVIRONMENT === 'production' + localhost origin → always blocked.
+ *   - ENVIRONMENT === 'production' + localhost/127.0.0.1 origin → always blocked.
  *   - Origin found in validated ALLOWED_ORIGINS list → ACAO set to that origin.
  *   - Origin not in list → ACAO not set, browser blocks the response.
  */
@@ -173,8 +186,11 @@ export function getCorsHeaders(
 
   if (!origin) return headers;
 
-  // Block localhost in production regardless of ALLOWED_ORIGINS value
-  if (env?.ENVIRONMENT === 'production' && origin.startsWith('http://localhost:')) {
+  // Block localhost/loopback in production regardless of ALLOWED_ORIGINS value
+  if (
+    env?.ENVIRONMENT === 'production' &&
+    (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))
+  ) {
     return headers;
   }
 
@@ -185,7 +201,7 @@ export function getCorsHeaders(
     .map((s) => s.trim())
     .filter((s) => s.length > 0 && ORIGIN_REGEX.test(s));
 
-  if (allowedOrigins.includes(origin)) {
+  if (allowedOrigins.some((a) => originMatches(origin, a))) {
     headers['Access-Control-Allow-Origin'] = origin;
   }
 

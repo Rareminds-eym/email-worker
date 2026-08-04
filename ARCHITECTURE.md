@@ -562,9 +562,9 @@ The logging strategy for errors in `index.ts`:
 
 CORS is handled by `getCorsHeaders()` in `constants.ts`. It is called on every response.
 
-### Allowed Origins — fully dynamic via secret
+### Allowed Origins — fully dynamic via vars
 
-No origins are hardcoded in the codebase. The full list is read at runtime from `env.ALLOWED_ORIGINS`, which is stored as a Cloudflare secret (set via `wrangler secret put ALLOWED_ORIGINS`). This means allowed domains can be updated without a code change or redeploy.
+No origins are hardcoded in the codebase. The full list is read at runtime from `env.ALLOWED_ORIGINS`, which is set in `[vars]` in `wrangler.toml`. This means allowed domains can be updated without a code change by redeploying.
 
 For local dev, `ALLOWED_ORIGINS` is set in `.dev.vars`.
 
@@ -651,7 +651,7 @@ interface Env {
   MESSAGECENTRAL_KEY: string;        // secret
   MESSAGECENTRAL_EMAIL: string;      // secret
   MESSAGECENTRAL_COUNTRY_CODE?: string; // optional secret
-  ALLOWED_ORIGINS?: string;          // secret (wrangler secret put ALLOWED_ORIGINS)
+  ALLOWED_ORIGINS?: string;          // var (in [vars] in wrangler.toml)
 }
 ```
 

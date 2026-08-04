@@ -1,8 +1,8 @@
 # Local secrets for wrangler dev.
 # Format: KEY=VALUE
 
-# API Key for authentication (must match your test script)
-API_KEY=your_development_secret_key
+# API Key for authentication (must match your test script and sso-worker's EMAIL_API_KEY)
+EMAIL_API_KEY=your_development_secret_key
 
 # AWS SES credentials - required for sending emails
 AWS_ACCESS_KEY_ID=your_aws_access_key_id
@@ -16,7 +16,14 @@ DEFAULT_FROM_NAME=Skill Passport Team
 # Optional: SES Configuration Set
 # SES_CONFIGURATION_SET=default
 
+# MessageCentral SMS - required for OTP sending/verification
+MESSAGECENTRAL_CUSTOMER_ID=your_customer_id
+MESSAGECENTRAL_KEY=your_long_lived_jwt
+MESSAGECENTRAL_EMAIL=admin@rareminds.in
+# Optional: default country code (defaults to 91)
+# MESSAGECENTRAL_COUNTRY_CODE=91
+
 # Allowed CORS origins — comma-separated, no spaces around commas.
-# In production this is set via: wrangler secret put ALLOWED_ORIGINS
+# In production this is set in [vars] in wrangler.toml.
 # Add all frontend origins you want to allow here for local dev.
 ALLOWED_ORIGINS=http://localhost:5173,http://localhost:8788

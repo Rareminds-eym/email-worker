@@ -103,7 +103,7 @@ These are loaded automatically by `wrangler dev`. Never commit this file.
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `API_KEY` | Yes | Shared secret for authenticating API requests |
+| `EMAIL_API_KEY` | Yes | Shared secret for authenticating API requests |
 | `AWS_ACCESS_KEY_ID` | Yes | AWS IAM access key with SES send permissions |
 | `AWS_SECRET_ACCESS_KEY` | Yes | AWS IAM secret key |
 | `AWS_REGION` | Yes | AWS region where SES is configured (e.g. `ap-south-1`) |
@@ -118,7 +118,7 @@ These are loaded automatically by `wrangler dev`. Never commit this file.
 Example `.dev.vars`:
 
 ```
-API_KEY=my_local_dev_secret
+EMAIL_API_KEY=my_local_dev_secret
 AWS_ACCESS_KEY_ID=YOUR_AWS_ACCESS_KEY_ID_HERE
 AWS_SECRET_ACCESS_KEY=WS_SECRET_ACCESS_KEY_EXAMPLEKEY
 AWS_REGION=ap-south-1
@@ -141,7 +141,7 @@ npm run secrets:setup
 Or set them individually:
 
 ```bash
-wrangler secret put API_KEY
+wrangler secret put EMAIL_API_KEY
 wrangler secret put AWS_ACCESS_KEY_ID
 wrangler secret put AWS_SECRET_ACCESS_KEY
 wrangler secret put DEFAULT_FROM_EMAIL
@@ -461,7 +461,7 @@ Invalid entries (missing protocol, typos, extra whitespace) are silently ignored
 npx tsx scripts/test-email.ts
 
 # Against production
-API_URL=https://your-worker.workers.dev API_KEY=your-key npx tsx scripts/test-email.ts
+API_URL=https://your-worker.workers.dev EMAIL_API_KEY=your-key npx tsx scripts/test-email.ts
 ```
 
 **Run unit tests:**
