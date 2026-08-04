@@ -168,7 +168,7 @@ function originMatches(origin: string, allowed: string): boolean {
  *
  * Behaviour:
  *   - No Origin header (curl, server-to-server) → passes through, no ACAO set.
- *   - ENVIRONMENT === 'production' + localhost origin → always blocked.
+ *   - ENVIRONMENT === 'production' + localhost/127.0.0.1 origin → always blocked.
  *   - Origin found in validated ALLOWED_ORIGINS list → ACAO set to that origin.
  *   - Origin not in list → ACAO not set, browser blocks the response.
  */
@@ -186,8 +186,11 @@ export function getCorsHeaders(
 
   if (!origin) return headers;
 
-  // Block localhost in production regardless of ALLOWED_ORIGINS value
-  if (env?.ENVIRONMENT === 'production' && origin.startsWith('http://localhost:')) {
+  // Block localhost/loopback in production regardless of ALLOWED_ORIGINS value
+  if (
+    env?.ENVIRONMENT === 'production' &&
+    (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))
+  ) {
     return headers;
   }
 
