@@ -17,6 +17,6 @@ DEFAULT_FROM_NAME=Skill Passport Team
 # SES_CONFIGURATION_SET=default
 
 # Allowed CORS origins — comma-separated, no spaces around commas.
-# In production this is set via: wrangler secret put ALLOWED_ORIGINS
+# In production this is set in [vars] in wrangler.toml.
 # Add all frontend origins you want to allow here for local dev.
 ALLOWED_ORIGINS=http://localhost:5173,http://localhost:8788
