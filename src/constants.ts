@@ -146,7 +146,7 @@ function originMatches(origin: string, allowed: string): boolean {
   if (!allowed.includes('*')) return origin === allowed;
   const pattern = '^' + allowed
     .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '[^/]+') + '$';
+    .replace(/\*/g, '[^/:]+') + '(:[0-9]+)?$';
   return new RegExp(pattern).test(origin);
 }
 
