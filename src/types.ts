@@ -14,7 +14,7 @@ export interface Env {
   RATE_LIMITER_MINUTE: RateLimit;
 
   // Environment variables
-  ENVIRONMENT: 'development' | 'staging' | 'production';
+  ENVIRONMENT: 'development' | 'qa' | 'staging' | 'production';
   ALLOWED_ORIGINS?: string;
 
   // API Key for authentication (shared with sso-worker's EMAIL_API_KEY)
