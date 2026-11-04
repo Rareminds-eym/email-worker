@@ -394,7 +394,7 @@ class EmailService extends WorkerEntrypoint<Env> {
   // ══════════════════════════════════════════════════════════════
 
   async queue(batch: MessageBatch): Promise<void> {
-    if (batch.queue === 'email-dlq') {
+    if (/^email-dlq(?:-(?:dev|qa))?$/.test(batch.queue)) {
       for (const message of batch.messages) {
         console.error(`[email-worker] [DLQ] Unrecoverable message:`, JSON.stringify(message.body));
         message.ack();
