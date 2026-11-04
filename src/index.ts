@@ -402,7 +402,7 @@ class EmailService extends WorkerEntrypoint<Env> {
       return;
     }
 
-    if (batch.queue === 'email-queue') {
+    if (/^email-queue(?:-(?:dev|qa))?$/.test(batch.queue)) {
       try {
         await handleEmailQueue(this.env, batch);
       } catch (error) {
